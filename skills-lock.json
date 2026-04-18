@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "socratic-coding-coach": {
+      "source": "gtn1024/skills",
+      "sourceType": "github",
+      "computedHash": "fa3443c240719da82e535918914820b20e21525e94e3afc090414d963231cbed"
+    }
+  }
+}
