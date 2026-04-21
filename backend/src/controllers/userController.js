@@ -61,7 +61,7 @@ async function login(req, res) {
 
     // 查询用户
     const [users] = await pool.execute(
-      'SELECT id, username, password FROM users WHERE username = ?',
+      'SELECT id, username, password, no_child_delete_prompt FROM users WHERE username = ?',
       [username]
     );
     if (users.length === 0) {
@@ -88,7 +88,11 @@ async function login(req, res) {
       message: '登录成功',
       data: {
         token,
-        user: { id: user.id, username: user.username }
+        user: {
+          id: user.id,
+          username: user.username,
+          no_child_delete_prompt: !!user.no_child_delete_prompt
+        }
       }
     });
   } catch (error) {
@@ -97,4 +101,24 @@ async function login(req, res) {
   }
 }
 
-module.exports = { register, login };
+// 更新用户设置
+async function updateSettings(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { no_child_delete_prompt } = req.body;
+
+    if (typeof no_child_delete_prompt === 'boolean') {
+      await pool.execute(
+        'UPDATE users SET no_child_delete_prompt = ? WHERE id = ?',
+        [no_child_delete_prompt ? 1 : 0, userId]
+      );
+    }
+
+    res.json({ success: true, message: '设置已更新' });
+  } catch (error) {
+    console.error('更新设置错误:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+module.exports = { register, login, updateSettings };

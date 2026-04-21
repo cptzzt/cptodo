@@ -6,7 +6,7 @@ async function getTasks(req, res) {
     const userId = req.user.userId;
 
     const [tasks] = await pool.execute(
-      'SELECT id, content, completed, created_at FROM tasks WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, content, due_date, completed, created_at FROM tasks WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
 
@@ -24,7 +24,7 @@ async function getTasks(req, res) {
 async function createTask(req, res) {
   try {
     const userId = req.user.userId;
-    const { content } = req.body;
+    const { content, due_date } = req.body;
 
     if (!content || content.trim() === '') {
       return res.status(400).json({ success: false, message: '任务内容不能为空' });
@@ -33,13 +33,18 @@ async function createTask(req, res) {
       return res.status(400).json({ success: false, message: '任务内容不能超过 500 个字符' });
     }
 
+    // 简单日期校验
+    if (due_date && !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+      return res.status(400).json({ success: false, message: '日期格式错误，请使用 YYYY-MM-DD' });
+    }
+
     const [result] = await pool.execute(
-      'INSERT INTO tasks (user_id, content) VALUES (?, ?)',
-      [userId, content.trim()]
+      'INSERT INTO tasks (user_id, content, due_date) VALUES (?, ?, ?)',
+      [userId, content.trim(), due_date || null]
     );
 
     const [newTask] = await pool.execute(
-      'SELECT id, content, completed, created_at FROM tasks WHERE id = ?',
+      'SELECT id, content, due_date, completed, created_at FROM tasks WHERE id = ?',
       [result.insertId]
     );
 
@@ -59,7 +64,7 @@ async function updateTask(req, res) {
   try {
     const userId = req.user.userId;
     const taskId = req.params.id;
-    const { content, completed } = req.body;
+    const { content, completed, due_date } = req.body;
 
     // 检查任务是否属于当前用户
     const [tasks] = await pool.execute(
@@ -85,6 +90,13 @@ async function updateTask(req, res) {
       updates.push('completed = ?');
       values.push(completed ? 1 : 0);
     }
+    if (due_date !== undefined) {
+      if (due_date && !/^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
+        return res.status(400).json({ success: false, message: '日期格式错误，请使用 YYYY-MM-DD' });
+      }
+      updates.push('due_date = ?');
+      values.push(due_date || null);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ success: false, message: '没有需要更新的字段' });
@@ -97,7 +109,7 @@ async function updateTask(req, res) {
     );
 
     const [updatedTask] = await pool.execute(
-      'SELECT id, content, completed, created_at FROM tasks WHERE id = ?',
+      'SELECT id, content, due_date, completed, created_at FROM tasks WHERE id = ?',
       [taskId]
     );
 

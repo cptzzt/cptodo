@@ -3,32 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>我的 Todo</title>
+  <title>CPTodo</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <h1>我的 Todo</h1>
-      <button id="logoutBtn" class="btn btn-secondary">退出登录</button>
-    </header>
+  <div class="app-layout">
+    <!-- 左侧：目录树 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>我的目录</h2>
+        <button id="addRootBtn" class="btn btn-primary btn-sm">+ 根目录/任务</button>
+      </div>
+      <div id="treeView" class="tree-view"></div>
+    </aside>
 
-    <div class="card">
-      <form id="addTaskForm" class="add-task-form">
-        <input type="text" id="taskInput" name="content" placeholder="输入新任务..." required maxlength="500" autocomplete="off">
-        <button type="submit" class="btn btn-primary">添加</button>
-      </form>
-    </div>
+    <!-- 拖拽调整宽度 -->
+    <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
 
-    <div class="card">
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="all">全部</button>
-        <button class="tab-btn" data-tab="pending">未完成</button>
-        <button class="tab-btn" data-tab="completed">已完成</button>
+    <!-- 中间：卡片列表 -->
+    <main class="main-content">
+      <header class="content-header">
+        <div class="breadcrumb">
+          <span id="currentPath">根目录</span>
+        </div>
+        <button id="logoutBtn" class="btn btn-secondary btn-sm">退出登录</button>
+      </header>
+      <div id="cardList" class="card-list"></div>
+      <div id="emptyHint" class="empty-state" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <p>当前目录为空<br><small style="color:#bbb;display:block;margin-top:4px;">点击上方按钮添加内容</small></p>
+      </div>
+    </main>
+
+    <!-- 详情面板拖拽 -->
+    <div class="detail-resize-handle" id="detailResizeHandle"></div>
+
+    <!-- 右侧：详情面板 -->
+    <aside id="detailPanel" class="detail-panel" style="display:none;">
+      <div class="detail-header">
+        <span class="detail-title" id="detailTitle">详情</span>
+        <button id="closeDetailBtn" class="btn btn-ghost btn-sm">关闭</button>
+      </div>
+      <div class="detail-body">
+        <div id="detailType" class="detail-badge"></div>
+
+        <div class="detail-field">
+          <label class="detail-label">标题</label>
+          <input type="text" id="detailTitleInput" class="detail-input" maxlength="255">
+        </div>
+
+        <div class="detail-field" id="contentField" style="display:none;">
+          <label class="detail-label">内容</label>
+          <textarea id="detailContentInput" class="detail-textarea" rows="4" maxlength="500" placeholder="任务内容..."></textarea>
+        </div>
+
+        <div class="detail-field">
+          <label class="detail-label">备注</label>
+          <textarea id="detailNotesInput" class="detail-textarea" rows="3" maxlength="1000" placeholder="添加备注..."></textarea>
+        </div>
+
+        <div class="detail-field" id="dueDateField" style="display:none;">
+          <label class="detail-label">截止日期</label>
+          <input type="date" id="detailDueDateInput" class="detail-input">
+        </div>
+
+        <div class="detail-field" id="completedField" style="display:none;">
+          <label class="checkbox-row">
+            <input type="checkbox" id="detailCompletedInput">
+            <span>标记为已完成</span>
+          </label>
+        </div>
+
+        <div class="detail-actions">
+          <button id="saveDetailBtn" class="btn btn-primary btn-full">保存修改</button>
+          <button id="deleteDetailBtn" class="btn btn-danger btn-full">删除</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 添加弹窗 -->
+  <div id="addModal" class="modal" style="display:none;">
+    <div class="modal-box">
+      <h3 class="modal-title" id="modalTitle">添加</h3>
+
+      <div class="modal-field">
+        <label>类型</label>
+        <select id="modalTypeSelect">
+          <option value="folder">目录</option>
+          <option value="task">任务</option>
+        </select>
       </div>
 
-      <ul id="taskList" class="task-list"></ul>
-      <div id="emptyMsg" class="empty-msg" style="display: none;">暂无任务</div>
+      <div class="modal-field">
+        <label>标题</label>
+        <input type="text" id="modalTitleInput" maxlength="255" placeholder="输入标题...">
+      </div>
+
+      <div class="modal-field" id="modalContentField" style="display:none;">
+        <label>内容</label>
+        <textarea id="modalContentInput" rows="3" maxlength="500" placeholder="输入任务内容..."></textarea>
+      </div>
+
+      <div class="modal-field" id="modalDueDateField" style="display:none;">
+        <label>截止日期</label>
+        <input type="date" id="modalDueDateInput">
+      </div>
+
+      <div class="modal-actions">
+        <button id="modalCancelBtn" class="btn btn-secondary">取消</button>
+        <button id="modalConfirmBtn" class="btn btn-primary">确认添加</button>
+      </div>
     </div>
   </div>
 
