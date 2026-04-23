@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const userRoutes = require('./routes/userRoutes');
 const itemRoutes = require('./routes/itemRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const tagRoutes = require('./routes/tagRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +17,8 @@ app.use(express.json());
 // 路由
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tags', tagRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

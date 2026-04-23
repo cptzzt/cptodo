@@ -9,30 +9,75 @@
 </head>
 <body>
   <div class="app-layout">
-    <!-- 左侧：目录树 -->
+    <!-- 左侧：导航面板 -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h2>我的目录</h2>
-        <button id="addRootBtn" class="btn btn-primary btn-sm">+ 根目录/任务</button>
+        <h2>CPTodo</h2>
+        <button id="logoutBtn" class="btn btn-ghost btn-sm">退出</button>
       </div>
-      <div id="treeView" class="tree-view"></div>
+
+      <nav class="nav-section">
+        <div class="nav-group">
+          <div class="nav-item active" data-view="notes">
+            <span class="nav-icon">📝</span>
+            <span class="nav-label">随笔</span>
+          </div>
+          <div class="nav-item" data-view="today">
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">今天</span>
+            <span class="nav-badge" id="todayBadge" style="display:none;"></span>
+          </div>
+          <div class="nav-item" data-view="week">
+            <span class="nav-icon">📆</span>
+            <span class="nav-label">本周</span>
+            <span class="nav-badge" id="weekBadge" style="display:none;"></span>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-header">
+            <span>项目</span>
+            <button id="addProjectBtn" class="btn btn-ghost btn-xs" title="新建项目">+</button>
+          </div>
+          <div id="projectList" class="nav-list"></div>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-header">
+            <span>标签</span>
+            <button id="addTagBtn" class="btn btn-ghost btn-xs" title="新建标签">+</button>
+          </div>
+          <div id="tagList" class="nav-list"></div>
+        </div>
+      </nav>
     </aside>
 
     <!-- 拖拽调整宽度 -->
     <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
 
-    <!-- 中间：卡片列表 -->
+    <!-- 中间：内容区 -->
     <main class="main-content">
       <header class="content-header">
-        <div class="breadcrumb">
-          <span id="currentPath">根目录</span>
+        <div class="content-title-row">
+          <h1 id="viewTitle">随笔</h1>
+          <div class="content-actions">
+            <button id="showCompletedBtn" class="btn btn-secondary btn-sm">显示已完成</button>
+            <button id="clearProjectBtn" class="btn btn-danger btn-sm" style="display:none;">清空项目</button>
+            <button id="addTaskBtn" class="btn btn-primary btn-sm">+ 新建</button>
+          </div>
         </div>
-        <button id="logoutBtn" class="btn btn-secondary btn-sm">退出登录</button>
+        <div id="viewSubtitle" class="content-subtitle"></div>
       </header>
+
+      <!-- 随笔快速输入 -->
+      <div id="quickNoteInput" class="quick-note-bar" style="display:none;">
+        <input type="text" id="quickNoteField" placeholder="快速记录一条随笔，回车保存..." maxlength="255">
+      </div>
+
       <div id="cardList" class="card-list"></div>
       <div id="emptyHint" class="empty-state" style="display:none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        <p>当前目录为空<br><small style="color:#bbb;display:block;margin-top:4px;">点击上方按钮添加内容</small></p>
+        <p id="emptyText">这里空空如也</p>
       </div>
     </main>
 
@@ -47,6 +92,13 @@
       </div>
       <div class="detail-body">
         <div id="detailType" class="detail-badge"></div>
+
+        <div class="detail-field" id="convertToTaskField" style="display:none;">
+          <label class="checkbox-row">
+            <input type="checkbox" id="convertToTaskCheck">
+            <span>转为任务（不可逆）</span>
+          </label>
+        </div>
 
         <div class="detail-field">
           <label class="detail-label">标题</label>
@@ -68,11 +120,46 @@
           <input type="date" id="detailDueDateInput" class="detail-input">
         </div>
 
+        <div class="detail-field" id="priorityField" style="display:none;">
+          <label class="detail-label">优先级</label>
+          <select id="detailPriorityInput" class="detail-input">
+            <option value="normal">普通</option>
+            <option value="important">重要</option>
+          </select>
+        </div>
+
+        <div class="detail-field" id="recurringField" style="display:none;">
+          <label class="detail-label">重复</label>
+          <select id="detailRecurringInput" class="detail-input">
+            <option value="">不重复</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+          </select>
+        </div>
+
+        <div class="detail-field" id="projectField" style="display:none;">
+          <label class="detail-label">所属项目</label>
+          <select id="detailProjectInput" class="detail-input">
+            <option value="">无项目</option>
+          </select>
+        </div>
+
         <div class="detail-field" id="completedField" style="display:none;">
           <label class="checkbox-row">
             <input type="checkbox" id="detailCompletedInput">
             <span>标记为已完成</span>
           </label>
+        </div>
+
+        <div class="detail-field" id="tagsField" style="display:none;">
+          <label class="detail-label">标签</label>
+          <div id="detailTagList" class="detail-tags"></div>
+          <div class="tag-add-row">
+            <select id="tagAddSelect" class="detail-input">
+              <option value="">添加标签...</option>
+            </select>
+          </div>
         </div>
 
         <div class="detail-actions">
@@ -83,16 +170,16 @@
     </aside>
   </div>
 
-  <!-- 添加弹窗 -->
+  <!-- 新建弹窗 -->
   <div id="addModal" class="modal" style="display:none;">
     <div class="modal-box">
-      <h3 class="modal-title" id="modalTitle">添加</h3>
+      <h3 class="modal-title" id="modalTitle">新建</h3>
 
-      <div class="modal-field">
+      <div class="modal-field" id="modalTypeField">
         <label>类型</label>
         <select id="modalTypeSelect">
-          <option value="folder">目录</option>
           <option value="task">任务</option>
+          <option value="note">随笔</option>
         </select>
       </div>
 
@@ -101,19 +188,44 @@
         <input type="text" id="modalTitleInput" maxlength="255" placeholder="输入标题...">
       </div>
 
-      <div class="modal-field" id="modalContentField" style="display:none;">
+      <div class="modal-field modal-task-field" id="modalContentField" style="display:none;">
         <label>内容</label>
         <textarea id="modalContentInput" rows="3" maxlength="500" placeholder="输入任务内容..."></textarea>
       </div>
 
-      <div class="modal-field" id="modalDueDateField" style="display:none;">
+      <div class="modal-field modal-task-field" id="modalDueDateField" style="display:none;">
         <label>截止日期</label>
         <input type="date" id="modalDueDateInput">
       </div>
 
+      <div class="modal-field modal-task-field" id="modalPriorityField" style="display:none;">
+        <label>优先级</label>
+        <select id="modalPriorityInput">
+          <option value="normal">普通</option>
+          <option value="important">重要</option>
+        </select>
+      </div>
+
+      <div class="modal-field modal-task-field" id="modalRecurringField" style="display:none;">
+        <label>重复</label>
+        <select id="modalRecurringInput">
+          <option value="">不重复</option>
+          <option value="daily">每天</option>
+          <option value="weekly">每周</option>
+          <option value="monthly">每月</option>
+        </select>
+      </div>
+
+      <div class="modal-field modal-task-field" id="modalProjectField" style="display:none;">
+        <label>项目</label>
+        <select id="modalProjectInput">
+          <option value="">无项目</option>
+        </select>
+      </div>
+
       <div class="modal-actions">
         <button id="modalCancelBtn" class="btn btn-secondary">取消</button>
-        <button id="modalConfirmBtn" class="btn btn-primary">确认添加</button>
+        <button id="modalConfirmBtn" class="btn btn-primary">确认新建</button>
       </div>
     </div>
   </div>

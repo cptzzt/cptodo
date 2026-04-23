@@ -24,17 +24,6 @@ const Storage = {
   setUser(user) {
     localStorage.setItem(KEYS.USER, JSON.stringify(user));
   },
-  // 不再提示删除的账号级别设置（数据库存储）
-  getNoChildDeletePrompt() {
-    const user = this.getUser();
-    return user ? !!user.no_child_delete_prompt : false;
-  },
-  setNoChildDeletePrompt(val) {
-    const user = this.getUser();
-    if (!user) return;
-    user.no_child_delete_prompt = val;
-    this.setUser(user);
-  },
   clear() {
     localStorage.removeItem(KEYS.TOKEN);
     localStorage.removeItem(KEYS.USER);
@@ -67,7 +56,7 @@ const Toast = {
   error(m) { this.show(m, 'error', 3500); }
 };
 
-// 自定义对话框（替代 browser alert/confirm）
+// 自定义对话框
 const Dialog = {
   confirm({ title, message, confirmText = '确认', cancelText = '取消', checkboxLabel = null }) {
     return new Promise((resolve) => {
@@ -138,6 +127,41 @@ const Dialog = {
       overlay.querySelector('#dialogConfirm').addEventListener('click', cleanup);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
     });
+  },
+
+  prompt({ title, message = '', placeholder = '', defaultValue = '', confirmText = '确认', cancelText = '取消' }) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      overlay.innerHTML = `
+        <div class="dialog-box">
+          <div class="dialog-header">${title}</div>
+          <div class="dialog-body">
+            ${message ? `<div class="dialog-message">${message}</div>` : ''}
+            <input type="text" id="dialogInput" class="dialog-input" placeholder="${placeholder}" value="${defaultValue}" maxlength="100">
+          </div>
+          <div class="dialog-footer">
+            <button class="btn btn-secondary" id="dialogCancel">${cancelText}</button>
+            <button class="btn btn-primary" id="dialogConfirm">${confirmText}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('#dialogInput');
+      input.focus();
+      input.select();
+      const cleanup = (value) => {
+        overlay.classList.add('dialog-fade-out');
+        setTimeout(() => overlay.remove(), 250);
+        resolve(value);
+      };
+      overlay.querySelector('#dialogCancel').addEventListener('click', () => cleanup(null));
+      overlay.querySelector('#dialogConfirm').addEventListener('click', () => cleanup(input.value.trim()));
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') cleanup(input.value.trim());
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    });
   }
 };
 
@@ -167,6 +191,7 @@ async function request(url, options = {}) {
 }
 
 const api = {
+  // 用户
   register(username, password) {
     return request('/users/register', {
       method: 'POST',
@@ -179,11 +204,42 @@ const api = {
       body: JSON.stringify({ username, password })
     });
   },
-  updateSettings(data) {
-    return request('/users/settings', { method: 'PATCH', body: JSON.stringify(data) });
+
+  // 项目
+  getProjects() {
+    return request('/projects');
   },
-  getItems() {
-    return request('/items');
+  createProject(data) {
+    return request('/projects', { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateProject(id, data) {
+    return request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteProject(id) {
+    return request(`/projects/${id}`, { method: 'DELETE' });
+  },
+
+  // 标签
+  getTags() {
+    return request('/tags');
+  },
+  createTag(data) {
+    return request('/tags', { method: 'POST', body: JSON.stringify(data) });
+  },
+  updateTag(id, data) {
+    return request(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteTag(id) {
+    return request(`/tags/${id}`, { method: 'DELETE' });
+  },
+
+  // 条目
+  getItems(params = {}) {
+    const query = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request(`/items${query ? '?' + query : ''}`);
   },
   createItem(data) {
     return request('/items', { method: 'POST', body: JSON.stringify(data) });
@@ -193,5 +249,13 @@ const api = {
   },
   deleteItem(id) {
     return request(`/items/${id}`, { method: 'DELETE' });
+  },
+
+  // 条目标签
+  addItemTag(itemId, tagId) {
+    return request(`/items/${itemId}/tags`, { method: 'POST', body: JSON.stringify({ tag_id: tagId }) });
+  },
+  removeItemTag(itemId, tagId) {
+    return request(`/items/${itemId}/tags/${tagId}`, { method: 'DELETE' });
   }
 };
