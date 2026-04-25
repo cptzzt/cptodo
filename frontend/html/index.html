@@ -32,6 +32,10 @@
             <span class="nav-label">本周</span>
             <span class="nav-badge" id="weekBadge" style="display:none;"></span>
           </div>
+          <div class="nav-item" data-view="recurring">
+            <span class="nav-icon">🔁</span>
+            <span class="nav-label">重复任务</span>
+          </div>
         </div>
 
         <div class="nav-group">
@@ -49,6 +53,19 @@
           </div>
           <div id="tagList" class="nav-list"></div>
         </div>
+
+        <div class="nav-group">
+          <div class="nav-item" data-view="trash">
+            <span class="nav-icon">🗑️</span>
+            <span class="nav-label">回收站</span>
+            <span class="nav-badge" id="trashBadge" style="display:none;"></span>
+          </div>
+          <div class="nav-item" data-view="expired">
+            <span class="nav-icon">⚠️</span>
+            <span class="nav-label">已过期</span>
+            <span class="nav-badge" id="expiredBadge" style="display:none;"></span>
+          </div>
+        </div>
       </nav>
     </aside>
 
@@ -62,7 +79,7 @@
           <h1 id="viewTitle">随笔</h1>
           <div class="content-actions">
             <button id="showCompletedBtn" class="btn btn-secondary btn-sm">显示已完成</button>
-            <button id="clearProjectBtn" class="btn btn-danger btn-sm" style="display:none;">清空项目</button>
+            <button id="batchDeleteBtn" class="btn btn-danger btn-sm" style="display:none;">批量删除</button>
             <button id="addTaskBtn" class="btn btn-primary btn-sm">+ 新建</button>
           </div>
         </div>
@@ -134,7 +151,6 @@
             <option value="">不重复</option>
             <option value="daily">每天</option>
             <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
           </select>
         </div>
 
@@ -165,6 +181,7 @@
         <div class="detail-actions">
           <button id="saveDetailBtn" class="btn btn-primary btn-full">保存修改</button>
           <button id="deleteDetailBtn" class="btn btn-danger btn-full">删除</button>
+          <p id="recurringDeleteHint" class="recurring-delete-hint" style="display:none;">删除重复任务则下个周期不会重建</p>
         </div>
       </div>
     </aside>
@@ -212,7 +229,19 @@
           <option value="">不重复</option>
           <option value="daily">每天</option>
           <option value="weekly">每周</option>
-          <option value="monthly">每月</option>
+        </select>
+      </div>
+
+      <div class="modal-field modal-task-field" id="modalWeekDayField" style="display:none;">
+        <label>重复日</label>
+        <select id="modalWeekDayInput">
+          <option value="1">周一</option>
+          <option value="2">周二</option>
+          <option value="3">周三</option>
+          <option value="4">周四</option>
+          <option value="5">周五</option>
+          <option value="6">周六</option>
+          <option value="0">周日</option>
         </select>
       </div>
 
@@ -226,6 +255,39 @@
       <div class="modal-actions">
         <button id="modalCancelBtn" class="btn btn-secondary">取消</button>
         <button id="modalConfirmBtn" class="btn btn-primary">确认新建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 回收站弹窗 -->
+  <div id="trashModal" class="modal" style="display:none;">
+    <div class="modal-box modal-box-lg">
+      <h3 class="modal-title">回收站</h3>
+
+      <div class="trash-tabs">
+        <button class="trash-tab active" data-type="task">任务</button>
+        <button class="trash-tab" data-type="note">随笔</button>
+        <button class="trash-tab" data-type="project">项目</button>
+      </div>
+
+      <div class="trash-toolbar">
+        <label class="checkbox-row">
+          <input type="checkbox" id="trashSelectAll">
+          <span>全选</span>
+        </label>
+        <div class="trash-actions">
+          <button id="trashRestoreBtn" class="btn btn-secondary btn-sm" disabled>恢复选中</button>
+          <button id="trashDeleteBtn" class="btn btn-danger btn-sm" disabled>彻底删除</button>
+        </div>
+      </div>
+
+      <div id="trashList" class="trash-list"></div>
+      <div id="trashEmpty" class="empty-state" style="display:none;">
+        <p>回收站是空的</p>
+      </div>
+
+      <div class="modal-actions">
+        <button id="trashCloseBtn" class="btn btn-secondary">关闭</button>
       </div>
     </div>
   </div>

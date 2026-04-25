@@ -1,37 +1,48 @@
 const pool = require('../utils/db');
 
 // ===== 清理过期的重复任务 =====
-// 每次加载列表时调用，实现"24:00 自动清理"效果
+// 每天：due_date < 今天 → 创建下一个（今天），删除旧的
+// 每周：due_date < 本周一 → 创建下一个（下一个目标星期几），删除旧的
+// 跳过回收站内的任务（deleted_at IS NOT NULL）
 async function cleanupExpiredRecurring(userId) {
-  // 1. 删除已过期的已完成重复任务（保留到当天，过期后删除）
-  await pool.execute(
-    `DELETE FROM items
-     WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
-     AND due_date < CURDATE() AND completed = 1`,
-    [userId]
-  );
-
-  // 2. 找出已过期的未完成重复任务
+  // 找出已过期的活跃重复任务（不含回收站内的）
   const [expired] = await pool.execute(
-    `SELECT id, user_id, project_id, title, content, notes, priority, recurring
+    `SELECT id, user_id, title, content, notes, priority, recurring, due_date
      FROM items
      WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
-     AND due_date < CURDATE() AND (completed = 0 OR completed IS NULL)`,
+     AND deleted_at IS NULL
+     AND (
+       (recurring = 'daily' AND due_date < CURDATE())
+       OR
+       (recurring = 'weekly' AND due_date < DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY))
+     )`,
     [userId]
   );
 
   for (const task of expired) {
-    // 计算下一次日期
-    let dateExpr;
-    if (task.recurring === 'daily') dateExpr = 'CURDATE()';
-    else if (task.recurring === 'weekly') dateExpr = 'DATE_ADD(CURDATE(), INTERVAL 7 DAY)';
-    else if (task.recurring === 'monthly') dateExpr = 'DATE_ADD(CURDATE(), INTERVAL 1 MONTH)';
+    // 计算下一个日期
+    let nextDateStr;
+    if (task.recurring === 'daily') {
+      nextDateStr = new Date().toISOString().slice(0, 10);
+    } else if (task.recurring === 'weekly') {
+      const orig = new Date(task.due_date + 'T00:00:00');
+      const targetDay = orig.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const currentDay = now.getDay();
+      let diff = targetDay - currentDay;
+      if (diff <= 0) diff += 7;
+      now.setDate(now.getDate() + diff);
+      nextDateStr = now.toISOString().slice(0, 10);
+    }
+
+    if (!nextDateStr) continue;
 
     // 创建下一次任务
     const [nextResult] = await pool.execute(
-      `INSERT INTO items (user_id, project_id, type, title, content, notes, due_date, completed, priority, recurring)
-       VALUES (?, ?, 'task', ?, ?, ?, ${dateExpr}, 0, ?, ?)`,
-      [task.user_id, task.project_id, task.title, task.content, task.notes, task.priority, task.recurring]
+      `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring)
+       VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?)`,
+      [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring]
     );
 
     // 继承标签
@@ -44,7 +55,7 @@ async function cleanupExpiredRecurring(userId) {
       await pool.execute(`INSERT INTO item_tags (item_id, tag_id) VALUES ${tagValues}`);
     }
 
-    // 删除旧任务
+    // 彻底删除旧任务
     await pool.execute('DELETE FROM items WHERE id = ?', [task.id]);
   }
 }
@@ -64,7 +75,7 @@ async function getItems(req, res) {
         i.sort_order, i.created_at
       FROM items i`;
 
-    const conditions = ['i.user_id = ?'];
+    const conditions = ['i.user_id = ?', 'i.deleted_at IS NULL'];
     const params = [userId];
 
     if (project_id !== undefined) {
@@ -184,8 +195,13 @@ async function createItem(req, res) {
       return res.status(400).json({ success: false, message: '日期格式错误' });
     }
 
-    if (recurring && !['daily', 'weekly', 'monthly'].includes(recurring)) {
+    if (recurring && !['daily', 'weekly'].includes(recurring)) {
       return res.status(400).json({ success: false, message: '重复周期无效' });
+    }
+
+    // 重复任务不能绑定项目
+    if (recurring && project_id) {
+      return res.status(400).json({ success: false, message: '重复任务不能绑定项目' });
     }
 
     const itemPriority = priority || 'normal';
@@ -291,16 +307,9 @@ async function updateItem(req, res) {
     }
 
     // 完成状态处理
-    let createNextRecurring = false;
     if (completed !== undefined && item.type === 'task') {
-      if (completed && item.recurring) {
-        // 重复任务：标记已完成（保留记录），后续创建下一次
-        updates.push('completed = 1');
-        createNextRecurring = true;
-      } else {
-        updates.push('completed = ?');
-        values.push(completed ? 1 : 0);
-      }
+      updates.push('completed = ?');
+      values.push(completed ? 1 : 0);
     }
 
     if (project_id !== undefined) {
@@ -314,6 +323,10 @@ async function updateItem(req, res) {
     }
 
     if (recurring !== undefined && item.type === 'task') {
+      // 设置重复时不能绑定项目
+      if (recurring && project_id !== undefined && project_id) {
+        return res.status(400).json({ success: false, message: '重复任务不能绑定项目' });
+      }
       updates.push('recurring = ?');
       values.push(recurring || null);
     }
@@ -338,30 +351,6 @@ async function updateItem(req, res) {
       values
     );
 
-    // 如果是完成重复任务，创建下一次轮回
-    if (createNextRecurring) {
-      let dateExpr;
-      if (item.recurring === 'daily') dateExpr = 'DATE_ADD(CURDATE(), INTERVAL 1 DAY)';
-      else if (item.recurring === 'weekly') dateExpr = 'DATE_ADD(CURDATE(), INTERVAL 7 DAY)';
-      else if (item.recurring === 'monthly') dateExpr = 'DATE_ADD(CURDATE(), INTERVAL 1 MONTH)';
-
-      const [nextResult] = await pool.execute(
-        `INSERT INTO items (user_id, project_id, type, title, content, notes, due_date, completed, priority, recurring)
-         VALUES (?, ?, 'task', ?, ?, ?, ${dateExpr}, 0, ?, ?)`,
-        [userId, item.project_id, item.title, item.content, item.notes, item.priority, item.recurring]
-      );
-
-      // 继承标签
-      const [tagRows] = await pool.execute(
-        'SELECT tag_id FROM item_tags WHERE item_id = ?',
-        [itemId]
-      );
-      if (tagRows.length > 0) {
-        const tagValues = tagRows.map(r => `(${nextResult.insertId}, ${r.tag_id})`).join(',');
-        await pool.execute(`INSERT INTO item_tags (item_id, tag_id) VALUES ${tagValues}`);
-      }
-    }
-
     const [updated] = await pool.execute(
       `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at
        FROM items WHERE id = ?`,
@@ -375,23 +364,26 @@ async function updateItem(req, res) {
   }
 }
 
-// 删除项
+// 删除项（软删除）
 async function deleteItem(req, res) {
   try {
     const userId = req.user.userId;
     const itemId = req.params.id;
 
     const [items] = await pool.execute(
-      'SELECT id, type FROM items WHERE id = ? AND user_id = ?',
+      'SELECT id, type FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
       [itemId, userId]
     );
     if (items.length === 0) {
       return res.status(404).json({ success: false, message: '项目不存在或无权删除' });
     }
 
-    await pool.execute('DELETE FROM items WHERE id = ? AND user_id = ?', [itemId, userId]);
+    await pool.execute(
+      'UPDATE items SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+      [itemId, userId]
+    );
 
-    res.json({ success: true, message: '删除成功' });
+    res.json({ success: true, message: '已移至回收站' });
   } catch (error) {
     console.error('删除失败:', error);
     res.status(500).json({ success: false, message: '服务器内部错误' });
@@ -448,4 +440,193 @@ async function removeItemTag(req, res) {
   }
 }
 
-module.exports = { getItems, createItem, updateItem, deleteItem, addItemTag, removeItemTag };
+// ===== 回收站接口 =====
+
+// 获取回收站列表
+async function getTrashItems(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { type } = req.query;
+
+    let sql = `
+      SELECT i.id, i.user_id, i.project_id, i.type, i.title,
+        i.content, i.notes, i.due_date, i.completed, i.priority,
+        i.deleted_at, i.created_at,
+        p.name AS project_name
+      FROM items i
+      LEFT JOIN projects p ON p.id = i.project_id
+      WHERE i.user_id = ? AND i.deleted_at IS NOT NULL`;
+    const params = [userId];
+
+    if (type) {
+      sql += ' AND i.type = ?';
+      params.push(type);
+    }
+
+    sql += ' ORDER BY i.deleted_at DESC';
+
+    const [items] = await pool.execute(sql, params);
+    res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('获取回收站错误:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+// 恢复项
+async function restoreItem(req, res) {
+  try {
+    const userId = req.user.userId;
+    const itemId = req.params.id;
+
+    const [items] = await pool.execute(
+      'SELECT id, type, project_id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL',
+      [itemId, userId]
+    );
+    if (items.length === 0) {
+      return res.status(404).json({ success: false, message: '项目不存在' });
+    }
+
+    const item = items[0];
+    const restoredProjects = [];
+
+    // 如果是任务/随笔，检查父项目是否也在回收站
+    if (item.project_id) {
+      const [projects] = await pool.execute(
+        'SELECT id, name, deleted_at FROM projects WHERE id = ? AND user_id = ?',
+        [item.project_id, userId]
+      );
+      if (projects.length > 0 && projects[0].deleted_at) {
+        // 一并恢复项目
+        await pool.execute(
+          'UPDATE projects SET deleted_at = NULL WHERE id = ? AND user_id = ?',
+          [item.project_id, userId]
+        );
+        restoredProjects.push(projects[0].name);
+      }
+    }
+
+    await pool.execute(
+      'UPDATE items SET deleted_at = NULL WHERE id = ? AND user_id = ?',
+      [itemId, userId]
+    );
+
+    const message = restoredProjects.length > 0
+      ? `已恢复，所属项目「${restoredProjects[0]}」将一并恢复`
+      : '已恢复';
+
+    res.json({ success: true, message, restoredProjects });
+  } catch (error) {
+    console.error('恢复失败:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+// 彻底删除项
+async function permanentDeleteItem(req, res) {
+  try {
+    const userId = req.user.userId;
+    const itemId = req.params.id;
+
+    const [items] = await pool.execute(
+      'SELECT id, type FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL',
+      [itemId, userId]
+    );
+    if (items.length === 0) {
+      return res.status(404).json({ success: false, message: '项目不存在' });
+    }
+
+    await pool.execute('DELETE FROM items WHERE id = ? AND user_id = ?', [itemId, userId]);
+
+    res.json({ success: true, message: '已彻底删除' });
+  } catch (error) {
+    console.error('彻底删除失败:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+// 批量恢复
+async function batchRestoreItems(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要恢复的项' });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [items] = await pool.execute(
+      `SELECT id, project_id FROM items WHERE id IN (${placeholders}) AND user_id = ? AND deleted_at IS NOT NULL`,
+      [...ids, userId]
+    );
+
+    if (items.length === 0) {
+      return res.status(404).json({ success: false, message: '未找到可恢复的项' });
+    }
+
+    // 找出需要一并恢复的项目
+    const projectIds = [...new Set(items.map(i => i.project_id).filter(Boolean))];
+    const restoredProjects = [];
+
+    for (const projectId of projectIds) {
+      const [projects] = await pool.execute(
+        'SELECT id, name, deleted_at FROM projects WHERE id = ? AND user_id = ?',
+        [projectId, userId]
+      );
+      if (projects.length > 0 && projects[0].deleted_at) {
+        await pool.execute(
+          'UPDATE projects SET deleted_at = NULL WHERE id = ? AND user_id = ?',
+          [projectId, userId]
+        );
+        restoredProjects.push(projects[0].name);
+      }
+    }
+
+    // 恢复选中的项
+    const itemIds = items.map(i => i.id);
+    const itemPlaceholders = itemIds.map(() => '?').join(',');
+    await pool.execute(
+      `UPDATE items SET deleted_at = NULL WHERE id IN (${itemPlaceholders}) AND user_id = ?`,
+      [...itemIds, userId]
+    );
+
+    const message = restoredProjects.length > 0
+      ? `已恢复 ${items.length} 项，所属项目「${restoredProjects.join('、')}」将一并恢复`
+      : `已恢复 ${items.length} 项`;
+
+    res.json({ success: true, message, restoredProjects });
+  } catch (error) {
+    console.error('批量恢复失败:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+// 批量彻底删除
+async function batchPermanentDeleteItems(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择要删除的项' });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    await pool.execute(
+      `DELETE FROM items WHERE id IN (${placeholders}) AND user_id = ? AND deleted_at IS NOT NULL`,
+      [...ids, userId]
+    );
+
+    res.json({ success: true, message: '已彻底删除' });
+  } catch (error) {
+    console.error('批量彻底删除失败:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
+module.exports = {
+  getItems, createItem, updateItem, deleteItem, addItemTag, removeItemTag,
+  getTrashItems, restoreItem, permanentDeleteItem,
+  batchRestoreItems, batchPermanentDeleteItems
+};

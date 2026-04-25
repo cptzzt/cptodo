@@ -11,6 +11,8 @@ let selectedId = null;
 let showCompleted = false;
 let pendingAddTags = [];   // 待添加的标签 ID
 let pendingRemoveTags = []; // 待移除的标签 ID
+let batchMode = false;      // 批量删除模式
+let batchSelectedIds = [];  // 批量选中的项 ID
 
 let allItems = [];
 let allProjects = [];
@@ -34,7 +36,7 @@ const viewTitle = $('#viewTitle');
 const viewSubtitle = $('#viewSubtitle');
 const showCompletedBtn = $('#showCompletedBtn');
 const addTaskBtn = $('#addTaskBtn');
-const clearProjectBtn = $('#clearProjectBtn');
+const batchDeleteBtn = $('#batchDeleteBtn');
 const quickNoteInput = $('#quickNoteInput');
 const quickNoteField = $('#quickNoteField');
 const cardList = $('#cardList');
@@ -67,6 +69,7 @@ const detailTagList = $('#detailTagList');
 const tagAddSelect = $('#tagAddSelect');
 const saveDetailBtn = $('#saveDetailBtn');
 const deleteDetailBtn = $('#deleteDetailBtn');
+const recurringDeleteHint = $('#recurringDeleteHint');
 
 // 弹窗
 const addModal = $('#addModal');
@@ -81,6 +84,8 @@ const modalPriorityInput = $('#modalPriorityInput');
 const modalPriorityField = $('#modalPriorityField');
 const modalRecurringInput = $('#modalRecurringInput');
 const modalRecurringField = $('#modalRecurringField');
+const modalWeekDayField = $('#modalWeekDayField');
+const modalWeekDayInput = $('#modalWeekDayInput');
 const modalProjectInput = $('#modalProjectInput');
 const modalProjectField = $('#modalProjectField');
 const modalCancelBtn = $('#modalCancelBtn');
@@ -123,6 +128,23 @@ function weekEnd() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function weekStart() {
+  const d = new Date();
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 计算从今天起下一个目标星期几的日期（0=Sun, 1=Mon, ..., 6=Sat）
+function nextDayOfWeek(targetDay) {
+  const d = new Date();
+  const currentDay = d.getDay();
+  let diff = targetDay - currentDay;
+  if (diff < 0) diff += 7;
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function isOverdue(item) {
   if (!item.due_date || item.completed) return false;
   return localDate(item.due_date) < today();
@@ -136,7 +158,7 @@ function isToday(dateStr) {
 function isThisWeek(dateStr) {
   if (!dateStr) return false;
   const d = localDate(dateStr);
-  return d >= today() && d <= weekEnd();
+  return d >= weekStart() && d <= weekEnd();
 }
 
 function recurringLabel(r) {
@@ -198,6 +220,7 @@ async function loadTags() {
 // 视图切换按钮
 $$('.nav-item[data-view]').forEach(el => {
   el.addEventListener('click', () => {
+    if (el.dataset.view === 'trash') return; // 回收站单独处理
     switchView(el.dataset.view);
   });
 });
@@ -207,6 +230,9 @@ function switchView(view, projectId, tagId) {
   currentProjectId = projectId || null;
   currentTagId = tagId || null;
   selectedId = null;
+  batchMode = false;
+  batchSelectedIds = [];
+  updateBatchButton();
   closeDetail();
   updateNavActive();
   renderContent();
@@ -385,12 +411,22 @@ function updateBadges() {
     todayBadge.style.display = 'none';
   }
 
-  const weekItems = allItems.filter(i => i.type === 'task' && !i.completed && isThisWeek(i.due_date));
+  const weekItems = allItems.filter(i => i.type === 'task' && !i.completed && isThisWeek(i.due_date) && !isToday(i.due_date));
   if (weekItems.length > 0) {
     weekBadge.style.display = '';
     weekBadge.textContent = weekItems.length;
   } else {
     weekBadge.style.display = 'none';
+  }
+
+  const expiredItems = allItems.filter(i =>
+    i.type === 'task' && !i.completed && !i.recurring && i.due_date && localDate(i.due_date) < weekStart()
+  );
+  if (expiredItems.length > 0) {
+    expiredBadge.style.display = '';
+    expiredBadge.textContent = expiredItems.length;
+  } else {
+    expiredBadge.style.display = 'none';
   }
 }
 
@@ -399,7 +435,7 @@ function renderContent() {
   // 标题和快速输入
   quickNoteInput.style.display = 'none';
   addTaskBtn.style.display = '';
-  clearProjectBtn.style.display = 'none';
+  batchDeleteBtn.style.display = 'none';
 
   let items = [];
 
@@ -408,27 +444,24 @@ function renderContent() {
       viewTitle.textContent = '随笔';
       viewSubtitle.textContent = '';
       quickNoteInput.style.display = '';
+      batchDeleteBtn.style.display = '';
       items = allItems.filter(i => i.type === 'note' && !i.project_id);
-      if (!showCompleted) {
-        // 随笔没有 completed 概念，全部显示
-      }
       break;
 
     case 'today':
       viewTitle.textContent = '今天';
       viewSubtitle.textContent = formatDate(today());
-      addTaskBtn.style.display = 'none';
+      batchDeleteBtn.style.display = '';
       items = allItems.filter(i => i.type === 'task' && (isToday(i.due_date) || (i.recurring && !i.due_date)));
       if (!showCompleted) items = items.filter(i => !i.completed);
       break;
 
     case 'week':
       viewTitle.textContent = '本周';
-      viewSubtitle.textContent = `${formatDate(today())} - ${formatDate(weekEnd())}`;
-      addTaskBtn.style.display = 'none';
+      viewSubtitle.textContent = `${formatDate(weekStart())} - ${formatDate(weekEnd())}`;
+      batchDeleteBtn.style.display = '';
       items = allItems.filter(i => {
         if (i.type !== 'task') return false;
-        // 排除今天（今天只在"今天"视图显示）
         if (isToday(i.due_date)) return false;
         return isThisWeek(i.due_date) || (i.recurring && !i.due_date);
       });
@@ -439,16 +472,40 @@ function renderContent() {
       const proj = getProject(currentProjectId);
       viewTitle.textContent = proj ? proj.name : '项目';
       viewSubtitle.textContent = '';
-      clearProjectBtn.style.display = '';
-      items = allItems.filter(i => (i.type === 'task' || i.type === 'note') && i.project_id == currentProjectId);
+      batchDeleteBtn.style.display = '';
+      items = allItems.filter(i => (i.type === 'task' || i.type === 'note') && i.project_id == currentProjectId && !i.recurring);
       if (!showCompleted) items = items.filter(i => !i.completed);
       break;
     }
+
+    case 'recurring':
+      viewTitle.textContent = '重复任务';
+      viewSubtitle.textContent = '';
+      addTaskBtn.style.display = '';
+      batchDeleteBtn.style.display = 'none';
+      items = allItems.filter(i => i.recurring);
+      if (!showCompleted) items = items.filter(i => !i.completed);
+      break;
+
+    case 'expired':
+      viewTitle.textContent = '已过期';
+      viewSubtitle.textContent = '上周及之前未完成的任务';
+      addTaskBtn.style.display = 'none';
+      batchDeleteBtn.style.display = '';
+      items = allItems.filter(i => {
+        if (i.type !== 'task') return false;
+        if (i.completed) return false;
+        if (i.recurring) return false;
+        if (!i.due_date) return false;
+        return localDate(i.due_date) < weekStart();
+      });
+      break;
 
     case 'tag': {
       const tag = getTag(currentTagId);
       viewTitle.textContent = tag ? tag.name : '标签';
       viewSubtitle.textContent = '';
+      batchDeleteBtn.style.display = '';
       items = allItems.filter(i => i.tags && i.tags.some(t => t.id == currentTagId));
       if (!showCompleted) items = items.filter(i => !i.completed);
       break;
@@ -481,13 +538,43 @@ function renderCards(items) {
       today: '今天没有到期任务',
       week: '本周没有到期任务',
       project: '该项目下没有任务',
-      tag: '没有任务使用此标签'
+      tag: '没有任务使用此标签',
+      recurring: '没有重复任务',
+      expired: '没有过期的任务'
     };
     emptyText.textContent = msgs[currentView] || '这里空空如也';
     return;
   }
 
   emptyHint.style.display = 'none';
+
+  // 批量模式下，顶部插入全选行
+  if (batchMode) {
+    // 全选数量排除重复任务
+    const selectableItems = items.filter(i => !i.recurring);
+    const allSelected = selectableItems.length > 0 && selectableItems.every(i => batchSelectedIds.includes(i.id));
+    const selectAllRow = document.createElement('div');
+    selectAllRow.className = 'batch-select-all-row';
+    selectAllRow.innerHTML = `
+      <label class="checkbox-row">
+        <input type="checkbox" id="batchSelectAll" ${allSelected ? 'checked' : ''}>
+        <span>全选 (${selectableItems.length})</span>
+      </label>
+      <button class="btn btn-ghost btn-sm batch-exit-btn" title="退出批量模式">退出</button>
+    `;
+    selectAllRow.querySelector('#batchSelectAll').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        batchSelectedIds = selectableItems.map(i => i.id);
+      } else {
+        batchSelectedIds = [];
+      }
+      updateBatchButton();
+      renderContent();
+    });
+    selectAllRow.querySelector('.batch-exit-btn').addEventListener('click', () => exitBatchMode());
+    cardList.appendChild(selectAllRow);
+  }
+
   items.forEach(item => {
     cardList.appendChild(createCard(item));
   });
@@ -524,16 +611,30 @@ function createCard(item) {
     ? `<span class="card-recurring">🔄 ${recurringLabel(item.recurring)}</span>`
     : '';
 
+  // 所属项目（仅今天/本周/已过期/标签视图显示）
+  const showProject = ['today', 'week', 'expired', 'tag'].includes(currentView) && item.project_id;
+  const proj = showProject ? getProject(item.project_id) : null;
+  const projHtml = proj
+    ? `<span class="card-meta card-project-name">📁 ${escapeHtml(proj.name)}</span>`
+    : '';
+
   // 右侧操作
   const rightAction = isNote
     ? ''
     : `<div class="card-check"><input type="checkbox"${completed ? ' checked' : ''} data-id="${item.id}"></div>`;
 
+  // 批量选择框（重复任务不显示）
+  const batchCheckHtml = batchMode && !item.recurring
+    ? `<div class="card-batch-check"><input type="checkbox" data-batch-id="${item.id}" ${batchSelectedIds.includes(item.id) ? 'checked' : ''}></div>`
+    : '';
+
   card.innerHTML = `
+    ${batchCheckHtml}
     <span class="card-icon card-icon-${item.type}">${isNote ? '📝' : '☑'}</span>
     <div class="card-body">
       <div class="card-title">${escapeHtml(item.title)}</div>
       <div class="card-meta">
+        ${projHtml}
         ${dueHtml}
         ${recurHtml}
         ${tagsHtml}
@@ -542,9 +643,38 @@ function createCard(item) {
     ${rightAction}
   `;
 
-  // 点击卡片 → 选中开详情
+  // 批量选择框事件
+  if (batchMode) {
+    const batchCheckbox = card.querySelector('input[data-batch-id]');
+    if (batchCheckbox) {
+      batchCheckbox.addEventListener('change', (e) => {
+        e.stopPropagation();
+        if (e.target.checked) {
+          if (!batchSelectedIds.includes(item.id)) batchSelectedIds.push(item.id);
+        } else {
+          batchSelectedIds = batchSelectedIds.filter(id => id !== item.id);
+        }
+        updateBatchButton();
+      });
+    }
+  }
+
+  // 点击卡片
   card.addEventListener('click', (e) => {
     if (e.target.type === 'checkbox') return;
+    if (batchMode && !item.recurring) {
+      // 批量模式下非重复任务：切换选中
+      const idx = batchSelectedIds.indexOf(item.id);
+      if (idx >= 0) {
+        batchSelectedIds.splice(idx, 1);
+      } else {
+        batchSelectedIds.push(item.id);
+      }
+      const cb = card.querySelector('input[data-batch-id]');
+      if (cb) cb.checked = idx < 0;
+      updateBatchButton();
+      return;
+    }
     selectItem(item);
   });
 
@@ -556,12 +686,8 @@ function createCard(item) {
         e.stopPropagation();
         try {
           await api.updateItem(item.id, { completed: e.target.checked });
-          if (item.recurring && e.target.checked) {
-            Toast.success('任务已完成，下一次已创建');
-          } else {
-            Toast.success(e.target.checked ? '任务已完成' : '已取消完成');
-          }
-          await loadItems();
+          Toast.success(e.target.checked ? '任务已完成' : '已取消完成');
+          await Promise.all([loadItems(), loadTags()]);
         } catch (err) {
           e.target.checked = !e.target.checked;
           Toast.error(err.message);
@@ -609,8 +735,9 @@ function showDetail(item) {
   detailTitle.textContent = item.title;
 
   const isNote = item.type === 'note';
+  const isRecurring = !!item.recurring;
 
-  detailType.textContent = isNote ? '随笔' : '任务';
+  detailType.textContent = isNote ? '随笔' : (isRecurring ? '重复任务' : '任务');
   detailType.className = `detail-badge badge-${item.type}`;
   detailTitleInput.value = item.title;
   detailNotesInput.value = item.notes || '';
@@ -625,6 +752,7 @@ function showDetail(item) {
     projectField.style.display = '';
     completedField.style.display = 'none';
     tagsField.style.display = '';
+    recurringDeleteHint.style.display = 'none';
     populateProjectSelect(detailProjectInput, true);
     detailProjectInput.value = item.project_id || '';
     renderDetailTags(item);
@@ -633,8 +761,9 @@ function showDetail(item) {
     contentField.style.display = '';
     dueDateField.style.display = '';
     priorityField.style.display = '';
-    recurringField.style.display = '';
-    projectField.style.display = '';
+    // 普通任务不显示重复选项，重复任务不显示项目选择
+    recurringField.style.display = isRecurring ? '' : 'none';
+    projectField.style.display = isRecurring ? 'none' : '';
     completedField.style.display = '';
     tagsField.style.display = '';
 
@@ -646,9 +775,11 @@ function showDetail(item) {
     detailProjectInput.value = item.project_id || '';
     detailCompletedInput.checked = !!item.completed;
 
-    // 渲染标签
     renderDetailTags(item);
   }
+
+  // 重复任务删除提示
+  recurringDeleteHint.style.display = isRecurring ? '' : 'none';
 }
 
 // 获取当前显示中的标签列表（含暂存变更）
@@ -797,7 +928,7 @@ deleteDetailBtn.addEventListener('click', async () => {
     await api.deleteItem(item.id);
     Toast.success('删除成功');
     closeDetail();
-    await loadItems();
+    await Promise.all([loadItems(), loadTags(), loadProjects()]);
   } catch (e) {
     Toast.error(e.message);
   }
@@ -831,24 +962,68 @@ convertToTaskCheck.addEventListener('change', () => {
 });
 
 closeDetailBtn.addEventListener('click', closeDetail);
-clearProjectBtn.addEventListener('click', async () => {
-  if (currentView !== 'project' || !currentProjectId) return;
-  const projItems = allItems.filter(i => i.project_id == currentProjectId);
-  if (projItems.length === 0) {
-    Toast.success('项目已为空');
+// ===== 批量删除 =====
+const cancelBatchBtn = document.createElement('button');
+cancelBatchBtn.id = 'cancelBatchBtn';
+cancelBatchBtn.className = 'btn btn-secondary btn-sm';
+cancelBatchBtn.textContent = '取消';
+cancelBatchBtn.style.display = 'none';
+cancelBatchBtn.style.marginRight = '8px';
+batchDeleteBtn.parentNode.insertBefore(cancelBatchBtn, batchDeleteBtn);
+
+cancelBatchBtn.addEventListener('click', () => exitBatchMode());
+
+function updateBatchButton() {
+  if (batchMode) {
+    batchDeleteBtn.textContent = batchSelectedIds.length > 0
+      ? `删除选中项 (${batchSelectedIds.length})`
+      : '删除选中项';
+    batchDeleteBtn.classList.add('btn-danger-active');
+    cancelBatchBtn.style.display = 'none';
+  } else {
+    batchDeleteBtn.textContent = '批量删除';
+    batchDeleteBtn.classList.remove('btn-danger-active');
+    cancelBatchBtn.style.display = 'none';
+  }
+}
+
+function exitBatchMode() {
+  batchMode = false;
+  batchSelectedIds = [];
+  updateBatchButton();
+  renderContent();
+}
+
+batchDeleteBtn.addEventListener('click', async () => {
+  if (!batchMode) {
+    // 进入批量模式：关闭详情面板，防止同时修改数据
+    closeDetail();
+    batchMode = true;
+    batchSelectedIds = [];
+    updateBatchButton();
+    renderContent();
     return;
   }
+
+  // 批量模式下：删除选中项
+  if (batchSelectedIds.length === 0) {
+    Toast.error('请先选择要删除的项');
+    return;
+  }
+
+  const count = batchSelectedIds.length;
   const confirmed = await Dialog.confirm({
-    title: '清空项目',
-    message: `将删除该项目下的所有 ${projItems.length} 个任务和随笔，确认？`,
-    confirmText: '全部删除',
+    title: '批量删除',
+    message: `确认删除选中的 ${count} 项？删除后可在回收站恢复。`,
+    confirmText: '删除',
     cancelText: '取消'
   });
   if (!confirmed.confirmed) return;
+
   try {
-    await Promise.all(projItems.map(item => api.deleteItem(item.id)));
-    Toast.success('已清空');
-    closeDetail();
+    await Promise.all(batchSelectedIds.map(id => api.deleteItem(id)));
+    Toast.success(`已删除 ${count} 项`);
+    exitBatchMode();
     await Promise.all([loadItems(), loadProjects()]);
   } catch (e) {
     Toast.error(e.message);
@@ -883,8 +1058,14 @@ addTaskBtn.addEventListener('click', () => {
 });
 
 function openAddModal() {
-  // 根据当前视图预设类型
+  // 根据当前视图预设类型和日期
   if (currentView === 'project') {
+    modalTypeSelect.value = 'task';
+    modalTypeField.style.display = 'none';
+  } else if (currentView === 'recurring') {
+    modalTypeSelect.value = 'task';
+    modalTypeField.style.display = 'none';
+  } else if (currentView === 'today' || currentView === 'week') {
     modalTypeSelect.value = 'task';
     modalTypeField.style.display = 'none';
   } else {
@@ -897,12 +1078,26 @@ function openAddModal() {
     }
   }
 
-  modalTitle.textContent = '新建';
+  modalTitle.textContent = currentView === 'recurring' ? '新建重复任务' : '新建';
   modalTitleInput.value = '';
   modalContentInput.value = '';
-  modalDueDateInput.value = '';
   modalPriorityInput.value = 'normal';
-  modalRecurringInput.value = '';
+
+  // 日期预设
+  if (currentView === 'today') {
+    modalDueDateInput.value = today();
+  } else if (currentView === 'week') {
+    modalDueDateInput.value = weekEnd();
+  } else {
+    modalDueDateInput.value = '';
+  }
+
+  // 重复任务视图：默认选"每天"，其他视图：不重复
+  if (currentView === 'recurring') {
+    modalRecurringInput.value = 'daily';
+  } else {
+    modalRecurringInput.value = '';
+  }
 
   // 预设项目
   populateProjectSelect(modalProjectInput, false);
@@ -920,10 +1115,65 @@ function openAddModal() {
 
 function updateModalFields() {
   const isTask = modalTypeSelect.value === 'task';
+  const isRecurringView = currentView === 'recurring';
+  const isTodayView = currentView === 'today';
+  const isWeekView = currentView === 'week';
+
   $$('.modal-task-field').forEach(el => el.style.display = isTask ? '' : 'none');
+  modalWeekDayField.style.display = 'none';
+
+  if (!isTask) return;
+
+  // 重复任务视图
+  if (isRecurringView) {
+    modalRecurringField.style.display = '';
+    // 去掉"不重复"选项
+    Array.from(modalRecurringInput.options).forEach(opt => {
+      opt.style.display = opt.value === '' ? 'none' : '';
+    });
+    modalProjectField.style.display = 'none';
+    const recurring = modalRecurringInput.value;
+    if (recurring === 'daily') {
+      modalDueDateField.style.display = 'none';
+      modalWeekDayField.style.display = 'none';
+    } else if (recurring === 'weekly') {
+      modalDueDateField.style.display = 'none';
+      modalWeekDayField.style.display = '';
+    }
+    return;
+  }
+
+  // 今天视图：隐藏日期选择（固定今天）
+  if (isTodayView) {
+    modalRecurringField.style.display = 'none';
+    modalProjectField.style.display = '';
+    modalDueDateField.style.display = 'none';
+    return;
+  }
+
+  // 本周视图：限制日期范围
+  if (isWeekView) {
+    modalRecurringField.style.display = 'none';
+    modalProjectField.style.display = '';
+    modalDueDateField.style.display = '';
+    modalDueDateInput.min = weekStart();
+    modalDueDateInput.max = weekEnd();
+    return;
+  }
+
+  // 普通任务视图
+  modalRecurringField.style.display = 'none';
+  Array.from(modalRecurringInput.options).forEach(opt => {
+    opt.style.display = '';
+  });
+  modalProjectField.style.display = '';
+  modalDueDateField.style.display = '';
+  modalDueDateInput.min = '';
+  modalDueDateInput.max = '';
 }
 
 modalTypeSelect.addEventListener('change', updateModalFields);
+modalRecurringInput.addEventListener('change', updateModalFields);
 
 modalCancelBtn.addEventListener('click', () => {
   addModal.style.display = 'none';
@@ -946,14 +1196,26 @@ modalConfirmBtn.addEventListener('click', async () => {
   if (type === 'task') {
     data.content = modalContentInput.value.trim() || null;
     data.priority = modalPriorityInput.value;
-    data.recurring = modalRecurringInput.value || null;
-    // 设了重复但没设日期，自动用今天
-    if (data.recurring && !modalDueDateInput.value) {
+    if (currentView === 'recurring') {
+      const recurring = modalRecurringInput.value || 'daily';
+      data.recurring = recurring;
+      if (recurring === 'daily') {
+        data.due_date = today();
+      } else if (recurring === 'weekly') {
+        data.due_date = nextDayOfWeek(parseInt(modalWeekDayInput.value));
+      }
+    } else if (currentView === 'today') {
       data.due_date = today();
+    } else if (currentView === 'week') {
+      const d = modalDueDateInput.value;
+      if (d && (d < weekStart() || d > weekEnd())) {
+        Toast.error('日期必须在本周范围内');
+        return;
+      }
+      data.due_date = d || weekEnd();
     } else {
       data.due_date = modalDueDateInput.value || null;
     }
-    data.project_id = modalProjectInput.value || null;
     if (currentView === 'project' && currentProjectId) {
       data.project_id = currentProjectId;
     }
@@ -1031,5 +1293,208 @@ logoutBtn.addEventListener('click', () => {
   setupResize('detailResizeHandle', '.detail-panel', 240, 520, true);
 })();
 
+// ===== 回收站 =====
+const trashModal = $('#trashModal');
+const trashList = $('#trashList');
+const trashEmpty = $('#trashEmpty');
+const trashSelectAll = $('#trashSelectAll');
+const trashRestoreBtn = $('#trashRestoreBtn');
+const trashDeleteBtn = $('#trashDeleteBtn');
+const trashCloseBtn = $('#trashCloseBtn');
+const trashBadge = $('#trashBadge');
+const expiredBadge = $('#expiredBadge');
+
+let trashType = 'task';       // 当前 Tab: task | note | project
+let trashItems = [];           // 当前回收站数据
+let trashSelectedIds = [];     // 已选中的 ID 列表
+
+// 侧边栏回收站按钮
+$$('.nav-item[data-view="trash"]').forEach(el => {
+  el.addEventListener('click', () => openTrash());
+});
+
+function openTrash() {
+  trashType = 'task';
+  $$('.trash-tab').forEach(t => t.classList.toggle('active', t.dataset.type === 'task'));
+  trashModal.style.display = '';
+  trashModal.classList.add('show');
+  loadTrash();
+}
+
+function closeTrash() {
+  trashModal.style.display = 'none';
+  trashModal.classList.remove('show');
+  trashSelectedIds = [];
+}
+
+// Tab 切换
+$$('.trash-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    trashType = tab.dataset.type;
+    $$('.trash-tab').forEach(t => t.classList.toggle('active', t === tab));
+    trashSelectedIds = [];
+    loadTrash();
+  });
+});
+
+// 关闭按钮和遮罩
+trashCloseBtn.addEventListener('click', closeTrash);
+trashModal.addEventListener('click', (e) => {
+  if (e.target === trashModal) closeTrash();
+});
+
+// 全选
+trashSelectAll.addEventListener('change', () => {
+  if (trashSelectAll.checked) {
+    trashSelectedIds = trashItems.map(i => i.id);
+  } else {
+    trashSelectedIds = [];
+  }
+  renderTrashList();
+});
+
+// 加载回收站数据
+async function loadTrash() {
+  try {
+    let data;
+    if (trashType === 'project') {
+      const res = await api.getTrashProjects();
+      data = (res.data || []).map(p => ({ ...p, type: 'project' }));
+    } else {
+      const res = await api.getTrashItems({ type: trashType });
+      data = res.data || [];
+    }
+    trashItems = data;
+    trashSelectAll.checked = false;
+    trashSelectedIds = [];
+    renderTrashList();
+    updateTrashBadge();
+  } catch (e) {
+    Toast.error('加载回收站失败: ' + e.message);
+  }
+}
+
+// 更新回收站角标
+async function updateTrashBadge() {
+  // 回收站不显示角标
+  trashBadge.style.display = 'none';
+}
+
+// 渲染回收站列表
+function renderTrashList() {
+  trashList.innerHTML = '';
+
+  if (trashItems.length === 0) {
+    trashEmpty.style.display = '';
+    trashRestoreBtn.disabled = true;
+    trashDeleteBtn.disabled = true;
+    return;
+  }
+
+  trashEmpty.style.display = 'none';
+
+  trashItems.forEach(item => {
+    const isSelected = trashSelectedIds.includes(item.id);
+    const el = document.createElement('div');
+    el.className = `trash-item trash-item-type-${item.type}`;
+
+    const icon = item.type === 'note' ? '📝' : item.type === 'task' ? '☑' : '📁';
+    const typeLabel = item.type === 'note' ? '随笔' : item.type === 'task' ? '任务' : '项目';
+    const meta = item.project_name ? `原属: ${escapeHtml(item.project_name)}` : typeLabel;
+
+    el.innerHTML = `
+      <div class="trash-item-check">
+        <input type="checkbox" data-id="${item.id}" ${isSelected ? 'checked' : ''}>
+      </div>
+      <span class="trash-item-icon">${icon}</span>
+      <div class="trash-item-info">
+        <div class="trash-item-title">${escapeHtml(item.title || item.name)}</div>
+        <div class="trash-item-meta">${meta}</div>
+      </div>
+    `;
+
+    el.querySelector('input[type="checkbox"]').addEventListener('change', (e) => {
+      const id = item.id;
+      if (e.target.checked) {
+        if (!trashSelectedIds.includes(id)) trashSelectedIds.push(id);
+      } else {
+        trashSelectedIds = trashSelectedIds.filter(i => i !== id);
+      }
+      updateTrashButtons();
+    });
+
+    trashList.appendChild(el);
+  });
+
+  updateTrashButtons();
+}
+
+function updateTrashButtons() {
+  const hasSelected = trashSelectedIds.length > 0;
+  trashRestoreBtn.disabled = !hasSelected;
+  trashDeleteBtn.disabled = !hasSelected;
+  trashSelectAll.checked = trashItems.length > 0 && trashSelectedIds.length === trashItems.length;
+}
+
+// 恢复选中
+trashRestoreBtn.addEventListener('click', async () => {
+  if (trashSelectedIds.length === 0) return;
+
+  try {
+    if (trashType === 'project') {
+      for (const id of trashSelectedIds) {
+        await api.restoreProject(id);
+      }
+      Toast.success(`已恢复 ${trashSelectedIds.length} 个项目`);
+    } else {
+      const res = await api.batchRestoreItems(trashSelectedIds);
+      if (res.restoredProjects && res.restoredProjects.length > 0) {
+        Toast.success(`已恢复 ${trashSelectedIds.length} 项，所属项目「${res.restoredProjects.join('、')}」将一并恢复`);
+      } else {
+        Toast.success(res.message || `已恢复 ${trashSelectedIds.length} 项`);
+      }
+    }
+
+    trashSelectedIds = [];
+    await Promise.all([loadTrash(), loadItems(), loadProjects()]);
+  } catch (e) {
+    Toast.error(e.message);
+  }
+});
+
+// 彻底删除选中
+trashDeleteBtn.addEventListener('click', async () => {
+  if (trashSelectedIds.length === 0) return;
+
+  const count = trashSelectedIds.length;
+  let deleteMsg = `确认彻底删除选中的 ${count} 项？此操作不可恢复。`;
+  if (trashType === 'project') {
+    deleteMsg = `确认彻底删除选中的 ${count} 个项目？回收站内曾属于该项目的所有任务和随笔将一并删除，此操作不可恢复。`;
+  }
+  const confirmed = await Dialog.confirm({
+    title: '彻底删除',
+    message: deleteMsg,
+    confirmText: '彻底删除',
+    cancelText: '取消'
+  });
+  if (!confirmed.confirmed) return;
+
+  try {
+    if (trashType === 'project') {
+      for (const id of trashSelectedIds) {
+        await api.permanentDeleteProject(id);
+      }
+    } else {
+      await api.batchPermanentDeleteItems(trashSelectedIds);
+    }
+    Toast.success(`已彻底删除 ${count} 项`);
+    trashSelectedIds = [];
+    await Promise.all([loadTrash(), loadItems(), loadProjects()]);
+  } catch (e) {
+    Toast.error(e.message);
+  }
+});
+
 // ===== 启动 =====
 init();
+updateTrashBadge();

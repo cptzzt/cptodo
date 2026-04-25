@@ -257,5 +257,37 @@ const api = {
   },
   removeItemTag(itemId, tagId) {
     return request(`/items/${itemId}/tags/${tagId}`, { method: 'DELETE' });
+  },
+
+  // 回收站 - 条目
+  getTrashItems(params = {}) {
+    const query = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request(`/items/trash${query ? '?' + query : ''}`);
+  },
+  restoreItem(id) {
+    return request(`/items/trash/restore/${id}`, { method: 'POST' });
+  },
+  permanentDeleteItem(id) {
+    return request(`/items/trash/permanent/${id}`, { method: 'DELETE' });
+  },
+  batchRestoreItems(ids) {
+    return request('/items/trash/batch-restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  },
+  batchPermanentDeleteItems(ids) {
+    return request('/items/trash/batch-permanent-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+  },
+
+  // 回收站 - 项目
+  getTrashProjects() {
+    return request('/projects/trash');
+  },
+  restoreProject(id) {
+    return request(`/projects/trash/restore/${id}`, { method: 'POST' });
+  },
+  permanentDeleteProject(id) {
+    return request(`/projects/trash/permanent/${id}`, { method: 'DELETE' });
   }
 };

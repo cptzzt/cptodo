@@ -7,10 +7,10 @@ async function getTags(req, res) {
 
     const [tags] = await pool.execute(
       `SELECT t.id, t.name, t.color, t.created_at,
-        COUNT(it.item_id) AS item_count
+        COUNT(i.id) AS item_count
        FROM tags t
        LEFT JOIN item_tags it ON it.tag_id = t.id
-       LEFT JOIN items i ON i.id = it.item_id AND (i.completed = 0 OR i.completed IS NULL)
+       LEFT JOIN items i ON i.id = it.item_id AND i.deleted_at IS NULL
        WHERE t.user_id = ?
        GROUP BY t.id
        ORDER BY t.created_at ASC`,
