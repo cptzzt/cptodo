@@ -1,39 +1,16 @@
-# 前端
+# React + Vite
 
-## 页面结构
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-```
-frontend/
-├── html/
-│   ├── login.html    # 登录页
-│   ├── register.html # 注册页
-│   └── index.html    # Todo 主页
-├── css/
-│   └── style.css     # 样式文件
-└── js/
-    ├── api.js       # API 请求封装
-    ├── login.js     # 登录页逻辑
-    ├── register.js  # 注册页逻辑
-    └── app.js       # Todo 主页逻辑
-```
+Currently, two official plugins are available:
 
-## 运行方式
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-前端是纯静态文件，可直接用浏览器打开 `html/login.html`，或者用任意静态服务器：
+## React Compiler
 
-```bash
-# Python
-python -m http.server 8080
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-# Node.js (npx)
-npx serve .
+## Expanding the ESLint configuration
 
-# PHP
-php -S localhost:8080
-```
-
-## 与后端联调
-
-确保后端已启动（`cd backend && npm start`），前端默认请求 `http://localhost:3000/api`。
-
-如需修改后端地址，编辑 `js/api.js` 中的 `API_BASE`。
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

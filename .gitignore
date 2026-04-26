@@ -2,6 +2,9 @@ node_modules/
 dist/
 .env
 
+# Claude Code 本地配置
+.claude/
+
 # 跨分支追踪文档（所有分支共享，不纳入版本控制）
 版本追踪.md
 需求记录.md

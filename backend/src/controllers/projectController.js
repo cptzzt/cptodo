@@ -7,10 +7,9 @@ async function getProjects(req, res) {
 
     const [projects] = await pool.execute(
       `SELECT p.id, p.name, p.sort_order, p.created_at,
-        COUNT(CASE WHEN i.type = 'task' AND i.priority = 'important' AND (i.completed = 0 OR i.completed IS NULL) AND i.deleted_at IS NULL THEN 1 END) AS important_count,
-        COUNT(CASE WHEN i.type = 'task' AND i.priority = 'normal' AND (i.completed = 0 OR i.completed IS NULL) AND i.deleted_at IS NULL THEN 1 END) AS normal_count
+        COUNT(CASE WHEN i.deleted_at IS NULL AND (i.completed = 0 OR i.completed IS NULL) THEN 1 END) AS item_count
        FROM projects p
-       LEFT JOIN items i ON i.project_id = p.id AND i.type = 'task'
+       LEFT JOIN items i ON i.project_id = p.id
        WHERE p.user_id = ? AND p.deleted_at IS NULL
        GROUP BY p.id
        ORDER BY p.sort_order ASC, p.created_at ASC`,
