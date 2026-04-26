@@ -107,7 +107,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
     }
 
     setSubmitting(true);
-    await onConfirm(data, currentView === 'tag' ? currentTagId : null);
+    await onConfirm(data, currentView.startsWith('tag-') ? currentTagId : null);
     setSubmitting(false);
   }
 
