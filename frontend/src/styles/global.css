@@ -1,31 +1,9 @@
-/* ===== CSS Variables ===== */
-:root {
-  --bg: #f4f6f9;
-  --surface: #ffffff;
-  --border: #e5e7eb;
-  --border-light: #f0f0f0;
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-light: #eef2ff;
-  --danger: #ef4444;
-  --danger-hover: #dc2626;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --warning-light: #fef3c7;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --font: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-}
+/* ===== 全局基础 ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -36,46 +14,76 @@ html, body {
 }
 
 body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--fg-primary);
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-medium); }
 
-/* ===== Buttons ===== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 16px;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--font);
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
+/* ===== 侧边栏 ===== */
+.ant-layout-sider {
+  background: var(--bg-sidebar) !important;
+  border-right: none !important;
 }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
-.btn-secondary { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
-.btn-secondary:hover:not(:disabled) { background: var(--border-light); color: var(--text-primary); }
-.btn-danger { background: #fee2e2; color: var(--danger); }
-.btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
-.btn-danger-active { background: var(--danger) !important; color: white !important; border-color: var(--danger) !important; }
-.btn-ghost { background: transparent; color: var(--text-secondary); }
-.btn-ghost:hover:not(:disabled) { background: var(--bg); color: var(--text-primary); }
-.btn-sm { padding: 6px 12px; font-size: 12px; }
-.btn-xs { padding: 2px 6px; font-size: 14px; border-radius: 4px; }
-.btn-full { width: 100%; }
+
+/* ===== Drawer 自定义 ===== */
+.ant-drawer .ant-drawer-header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.ant-drawer .ant-drawer-body {
+  padding: 20px;
+}
+
+.ant-drawer .ant-drawer-footer {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+}
+
+/* ===== Modal 圆角 ===== */
+.ant-modal .ant-modal-content {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* ===== Tag 柔和效果 ===== */
+.ant-tag {
+  border: none !important;
+}
+
+/* ===== Badge 微调 ===== */
+.ant-badge .ant-badge-count {
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ===== Button 效果 ===== */
+.ant-btn-primary {
+  background: var(--accent) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: all 0.3s ease !important;
+}
+
+.ant-btn-primary:hover {
+  background: var(--accent-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 40%, transparent) !important;
+}
+
+/* ===== Input focus 光效 ===== */
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}

@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import '../styles/detail.css';
+import { Drawer, Form, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker } from 'antd';
+import { DeleteOutlined, StarFilled } from '@ant-design/icons';
+import dayjs from 'dayjs';
+
+const { TextArea } = Input;
+const { Text, Title } = Typography;
 
 export default function DetailPanel({
   item,
@@ -20,7 +25,6 @@ export default function DetailPanel({
   const [projectId, setProjectId] = useState('');
   const [convertToTask, setConvertToTask] = useState(false);
 
-  // 当 item 变化时，重新填充表单
   useEffect(() => {
     if (!item) return;
     setTitle(item.title || '');
@@ -67,172 +71,142 @@ export default function DetailPanel({
   const availableTags = allTags.filter((t) => !usedTagIds.includes(t.id));
 
   return (
-    <aside className="detail-panel">
-      <div className="detail-header">
-        <span className="detail-title">{item.title}</span>
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>关闭</button>
+    <Drawer
+      title={item.title}
+      placement="right"
+      size="default"
+      onClose={onClose}
+      open={!!item}
+      extra={
+        <Popconfirm
+          title="确认删除？"
+          onConfirm={() => onDelete(item)}
+          icon={null}
+          okText="删除"
+          cancelText="取消"
+          okButtonProps={{ danger: true }}
+        >
+          <Button type="text" danger icon={<DeleteOutlined />} />
+        </Popconfirm>
+      }
+      footer={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button type="primary" onClick={handleSave} style={{ flex: 1 }}>保存修改</Button>
+          <Popconfirm
+            title="确认删除？"
+            onConfirm={() => onDelete(item)}
+            icon={null}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger>删除</Button>
+          </Popconfirm>
+        </div>
+      }
+    >
+      {/* 类型标记 */}
+      <div style={{ marginBottom: 16 }}>
+        <Tag color={isNote ? 'green' : isRecurring ? 'purple' : 'blue'}>
+          {isNote ? '随笔' : isRecurring ? '重复任务' : '任务'}
+        </Tag>
+        {!isNote && priority === 'important' && (
+          <Tag color="var(--important)" icon={<StarFilled />}>重要</Tag>
+        )}
       </div>
 
-      <div className="detail-body">
-        <div className="detail-badge-wrapper">
-          <span className={`detail-badge badge-${item.type}`}>
-            {isNote ? '随笔' : isRecurring ? '重复任务' : '任务'}
-          </span>
+      {/* 随笔转任务 */}
+      {isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Checkbox checked={convertToTask} onChange={(e) => setConvertToTask(e.target.checked)}>
+            转为任务（不可逆）
+          </Checkbox>
         </div>
+      )}
 
-        {/* 随笔转任务 */}
-        {isNote && (
-          <div className="detail-field">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={convertToTask}
-                onChange={(e) => setConvertToTask(e.target.checked)}
-              />
-              <span>转为任务（不可逆）</span>
-            </label>
-          </div>
-        )}
+      {/* 标题 */}
+      <div style={{ marginBottom: 16 }}>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>标题</Text>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={255} />
+      </div>
 
-        {/* 标题 */}
-        <div className="detail-field">
-          <label className="detail-label">标题</label>
-          <input
-            type="text"
-            className="detail-input"
-            maxLength={255}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+      {/* 内容（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>内容</Text>
+          <TextArea rows={4} maxLength={500} placeholder="任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
         </div>
+      )}
 
-        {/* 内容（仅任务） */}
-        {!isNote && (
-          <div className="detail-field">
-            <label className="detail-label">内容</label>
-            <textarea
-              className="detail-textarea"
-              rows={4}
-              maxLength={500}
-              placeholder="任务内容..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-          </div>
-        )}
+      {/* 备注 */}
+      <div style={{ marginBottom: 16 }}>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>备注</Text>
+        <TextArea rows={3} maxLength={1000} placeholder="添加备注..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
 
-        {/* 备注 */}
-        <div className="detail-field">
-          <label className="detail-label">备注</label>
-          <textarea
-            className="detail-textarea"
-            rows={3}
-            maxLength={1000}
-            placeholder="添加备注..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+      {/* 截止日期（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>截止日期</Text>
+          <DatePicker value={dueDate ? dayjs(dueDate) : null} onChange={(_, dateString) => setDueDate(dateString || '')}
+            style={{ width: '100%' }} placeholder="选择截止日期" />
         </div>
+      )}
 
-        {/* 截止日期（仅任务） */}
-        {!isNote && (
-          <div className="detail-field">
-            <label className="detail-label">截止日期</label>
-            <input
-              type="date"
-              className="detail-input"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </div>
-        )}
+      {/* 优先级（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>优先级</Text>
+          <Select value={priority} onChange={setPriority} style={{ width: '100%' }}>
+            <Select.Option value="normal">普通</Select.Option>
+            <Select.Option value="important">重要</Select.Option>
+          </Select>
+        </div>
+      )}
 
-        {/* 优先级（仅任务） */}
-        {!isNote && (
-          <div className="detail-field">
-            <label className="detail-label">优先级</label>
-            <select
-              className="detail-input"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-            >
-              <option value="normal">普通</option>
-              <option value="important">重要</option>
-            </select>
-          </div>
-        )}
-
-        {/* 所属项目 */}
-        {!isRecurring && (
-          <div className="detail-field">
-            <label className="detail-label">所属项目</label>
-            <select
-              className="detail-input"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-            >
-              <option value="">无项目</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* 已完成（仅任务） */}
-        {!isNote && (
-          <div className="detail-field">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={completed}
-                onChange={(e) => setCompleted(e.target.checked)}
-              />
-              <span>标记为已完成</span>
-            </label>
-          </div>
-        )}
-
-        {/* 标签 */}
-        <div className="detail-field">
-          <label className="detail-label">标签</label>
-          <div className="detail-tags">
-            {itemTags.map((t) => (
-              <span key={t.id} className="detail-tag-chip" style={{ background: t.color }}>
-                {t.name}
-                <span className="detail-tag-remove" onClick={() => onRemoveItemTag(item.id, t.id)}>
-                  &times;
-                </span>
-              </span>
+      {/* 所属项目 */}
+      {!isRecurring && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>所属项目</Text>
+          <Select value={projectId || undefined} onChange={setProjectId} style={{ width: '100%' }} allowClear placeholder="无项目">
+            {projects.map((p) => (
+              <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
             ))}
-          </div>
-          {availableTags.length > 0 && (
-            <div className="tag-add-row">
-              <select
-                className="detail-input"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) onAddItemTag(item.id, Number(e.target.value));
-                }}
-              >
-                <option value="">添加标签...</option>
-                {availableTags.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          </Select>
         </div>
+      )}
 
-        {/* 操作按钮 */}
-        <div className="detail-actions">
-          <button className="btn btn-primary btn-full" onClick={handleSave}>保存修改</button>
-          <button className="btn btn-danger btn-full" onClick={() => onDelete(item)}>删除</button>
-          {isRecurring && (
-            <p className="recurring-delete-hint">删除重复任务则下个周期不会重建</p>
-          )}
+      {/* 已完成（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Checkbox checked={completed} onChange={(e) => setCompleted(e.target.checked)}>
+            标记为已完成
+          </Checkbox>
         </div>
+      )}
+
+      {/* 标签 */}
+      <div style={{ marginBottom: 16 }}>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>标签</Text>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {itemTags.map((t) => (
+            <Tag key={t.id} color={t.color} closable onClose={() => onRemoveItemTag(item.id, t.id)}>
+              {t.name}
+            </Tag>
+          ))}
+        </div>
+        {availableTags.length > 0 && (
+          <Select value={undefined} onChange={(val) => { if (val) onAddItemTag(item.id, val); }} style={{ width: '100%' }} placeholder="添加标签..." allowClear>
+            {availableTags.map((t) => (
+              <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+            ))}
+          </Select>
+        )}
       </div>
-    </aside>
+
+      {isRecurring && (
+        <Text type="secondary" style={{ fontSize: 12 }}>删除重复任务则下个周期不会重建</Text>
+      )}
+    </Drawer>
   );
 }

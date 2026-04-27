@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import '../styles/modal.css';
+import { Modal, Form, Input, Select, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 
 function toDateStr(val) {
   if (!val) return '';
@@ -8,16 +9,12 @@ function toDateStr(val) {
 }
 function today() { return toDateStr(new Date()); }
 function weekStart() {
-  const d = new Date();
-  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
-  d.setDate(d.getDate() + diff);
-  return toDateStr(d);
+  const d = new Date(); const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
+  d.setDate(d.getDate() + diff); return toDateStr(d);
 }
 function weekEnd() {
-  const d = new Date();
-  const diff = d.getDay() === 0 ? 0 : 7 - d.getDay();
-  d.setDate(d.getDate() + diff);
-  return toDateStr(d);
+  const d = new Date(); const diff = d.getDay() === 0 ? 0 : 7 - d.getDay();
+  d.setDate(d.getDate() + diff); return toDateStr(d);
 }
 function nextDayOfWeek(day) {
   const d = new Date();
@@ -28,7 +25,7 @@ function nextDayOfWeek(day) {
   return toDateStr(d);
 }
 
-export default function AddItemModal({ currentView, currentProjectId, currentTagId, projects, onConfirm, onCancel }) {
+export default function AddItemModal({ currentView, currentProjectId, currentTagId, currentCalendarDate, projects, onConfirm, onCancel }) {
   const [type, setType] = useState('task');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -42,37 +39,26 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
   useEffect(() => {
     if (currentView === 'notes') setType('note');
     else setType('task');
-
     if (currentView === 'recurring') setRecurring('daily');
     else setRecurring('');
-
     if (currentView === 'today') setDueDate(today());
     else if (currentView === 'week') setDueDate(weekEnd());
+    else if (currentView === 'calendar' && currentCalendarDate) setDueDate(currentCalendarDate);
     else setDueDate('');
-
     if (currentView.startsWith('project-')) setProjectId(currentProjectId || '');
     else setProjectId('');
-
-    setTitle('');
-    setContent('');
-    setPriority('normal');
-    setWeekDay('1');
-  }, [currentView, currentProjectId]);
+    setTitle(''); setContent(''); setPriority('normal'); setWeekDay('1');
+  }, [currentView, currentProjectId, currentCalendarDate]);
 
   const isTask = type === 'task';
   const isRecurringView = currentView === 'recurring';
   const isTodayView = currentView === 'today';
   const isWeekView = currentView === 'week';
-  const hideTypeSelect = ['project', 'today', 'week', 'recurring'].includes(currentView) || currentView.startsWith('project-');
+  const isCalendarView = currentView === 'calendar';
+  const hideTypeSelect = ['project', 'today', 'week', 'recurring', 'calendar'].includes(currentView) || currentView.startsWith('project-');
 
-  function getModalTitle() {
-    if (isRecurringView) return '新建重复任务';
-    return '新建';
-  }
-
-  // 控制字段可见性
   const showRecurring = isRecurringView;
-  const showDueDate = isTask && !isRecurringView && !isTodayView && !(isRecurringView && recurring === 'daily');
+  const showDueDate = isTask && !isRecurringView && !isTodayView;
   const showWeekDay = isRecurringView && recurring === 'weekly';
   const showProject = isTask && !isRecurringView;
   const showContent = isTask;
@@ -80,13 +66,10 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
   async function handleSubmit() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-
     const data = { type, title: trimmedTitle };
-
     if (isTask) {
       data.content = content.trim() || null;
       data.priority = priority;
-
       if (isRecurringView) {
         data.recurring = recurring || 'daily';
         if (data.recurring === 'daily') data.due_date = today();
@@ -100,113 +83,93 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
       } else {
         data.due_date = dueDate || null;
       }
-
       if (currentView.startsWith('project-') && currentProjectId) {
         data.project_id = currentProjectId;
       }
     }
-
     setSubmitting(true);
     await onConfirm(data, currentView.startsWith('tag-') ? currentTagId : null);
     setSubmitting(false);
   }
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal-box">
-        <h3 className="modal-title">{getModalTitle()}</h3>
-
+    <Modal
+      title={isRecurringView ? '新建重复任务' : '新建'}
+      open={true}
+      onCancel={onCancel}
+      onOk={handleSubmit}
+      okText="确认新建"
+      cancelText="取消"
+      confirmLoading={submitting}
+      okButtonProps={{ disabled: !title.trim() }}
+      destroyOnHidden
+    >
+      <Form layout="vertical" style={{ marginTop: 16 }}>
         {!hideTypeSelect && (
-          <div className="modal-field">
-            <label>类型</label>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="task">任务</option>
-              <option value="note">随笔</option>
-            </select>
-          </div>
+          <Form.Item label="类型">
+            <Select value={type} onChange={setType}>
+              <Select.Option value="task">任务</Select.Option>
+              <Select.Option value="note">随笔</Select.Option>
+            </Select>
+          </Form.Item>
         )}
-
-        <div className="modal-field">
-          <label>标题</label>
-          <input
-            type="text"
-            maxLength={255}
-            placeholder="输入标题..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !submitting && handleSubmit()}
-            autoFocus
-          />
-        </div>
-
+        <Form.Item label="标题">
+          <Input placeholder="输入标题..." maxLength={255} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        </Form.Item>
         {showContent && (
-          <div className="modal-field">
-            <label>内容</label>
-            <textarea rows={3} maxLength={500} placeholder="输入任务内容..."
-              value={content} onChange={(e) => setContent(e.target.value)} />
-          </div>
+          <Form.Item label="内容">
+            <Input.TextArea rows={3} maxLength={500} placeholder="输入任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
+          </Form.Item>
         )}
-
         {showDueDate && (
-          <div className="modal-field">
-            <label>截止日期</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-              min={isWeekView ? weekStart() : undefined} max={isWeekView ? weekEnd() : undefined} />
-          </div>
+          <Form.Item label="截止日期">
+            <DatePicker value={dueDate ? dayjs(dueDate) : null} onChange={(_, dateString) => setDueDate(dateString || '')}
+              style={{ width: '100%' }} placeholder="选择截止日期"
+              disabledDate={isWeekView ? (current) => {
+                if (!current) return false;
+                const d = toDateStr(current.toDate());
+                return d < weekStart() || d > weekEnd();
+              } : undefined} />
+          </Form.Item>
         )}
-
         {isTask && (
-          <div className="modal-field">
-            <label>优先级</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-              <option value="normal">普通</option>
-              <option value="important">重要</option>
-            </select>
-          </div>
+          <Form.Item label="优先级">
+            <Select value={priority} onChange={setPriority}>
+              <Select.Option value="normal">普通</Select.Option>
+              <Select.Option value="important">重要</Select.Option>
+            </Select>
+          </Form.Item>
         )}
-
         {showRecurring && (
-          <div className="modal-field">
-            <label>重复</label>
-            <select value={recurring} onChange={(e) => setRecurring(e.target.value)}>
-              <option value="daily">每天</option>
-              <option value="weekly">每周</option>
-            </select>
-          </div>
+          <Form.Item label="重复">
+            <Select value={recurring} onChange={setRecurring}>
+              <Select.Option value="daily">每天</Select.Option>
+              <Select.Option value="weekly">每周</Select.Option>
+            </Select>
+          </Form.Item>
         )}
-
         {showWeekDay && (
-          <div className="modal-field">
-            <label>重复日</label>
-            <select value={weekDay} onChange={(e) => setWeekDay(e.target.value)}>
-              <option value="1">周一</option>
-              <option value="2">周二</option>
-              <option value="3">周三</option>
-              <option value="4">周四</option>
-              <option value="5">周五</option>
-              <option value="6">周六</option>
-              <option value="0">周日</option>
-            </select>
-          </div>
+          <Form.Item label="重复日">
+            <Select value={weekDay} onChange={setWeekDay}>
+              <Select.Option value="1">周一</Select.Option>
+              <Select.Option value="2">周二</Select.Option>
+              <Select.Option value="3">周三</Select.Option>
+              <Select.Option value="4">周四</Select.Option>
+              <Select.Option value="5">周五</Select.Option>
+              <Select.Option value="6">周六</Select.Option>
+              <Select.Option value="0">周日</Select.Option>
+            </Select>
+          </Form.Item>
         )}
-
         {showProject && (
-          <div className="modal-field">
-            <label>项目</label>
-            <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">无项目</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
+          <Form.Item label="项目">
+            <Select value={projectId || undefined} onChange={setProjectId} allowClear placeholder="无项目">
+              <Select.Option value="">无项目</Select.Option>
+              {projects.map((p) => <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>)}
+            </Select>
+          </Form.Item>
         )}
-
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>取消</button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !title.trim()}>
-            {submitting ? '创建中...' : '确认新建'}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Form>
+    </Modal>
   );
 }
