@@ -23,9 +23,10 @@ async function cleanupExpiredRecurring(userId) {
     // 计算下一个日期
     let nextDateStr;
     if (task.recurring === 'daily') {
-      nextDateStr = new Date().toISOString().slice(0, 10);
+      const d = new Date();
+      nextDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     } else if (task.recurring === 'weekly') {
-      const orig = new Date(task.due_date + 'T00:00:00');
+      const orig = new Date(task.due_date);
       const targetDay = orig.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
       const now = new Date();
       now.setHours(0, 0, 0, 0);
@@ -33,7 +34,7 @@ async function cleanupExpiredRecurring(userId) {
       let diff = targetDay - currentDay;
       if (diff <= 0) diff += 7;
       now.setDate(now.getDate() + diff);
-      nextDateStr = now.toISOString().slice(0, 10);
+      nextDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     }
 
     if (!nextDateStr) continue;
