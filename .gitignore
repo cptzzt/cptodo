@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.vite
 .env
 
 # Claude Code 本地配置
