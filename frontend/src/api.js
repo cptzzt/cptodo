@@ -45,6 +45,12 @@ async function request(url, options = {}) {
     }
     throw new Error(data.message || '请求失败');
   }
+
+  // 主题 API 调试日志
+  if (url.includes('/theme')) {
+    console.log('[API] 主题接口响应:', data);
+  }
+
   return data;
 }
 
@@ -55,6 +61,21 @@ export const api = {
   },
   register(username, password) {
     return request('/users/register', { method: 'POST', body: JSON.stringify({ username, password }) });
+  },
+  sendEmailCode(email, type = 'login') {
+    return request('/users/send-email-code', { method: 'POST', body: JSON.stringify({ email, type }) });
+  },
+  emailAuth(email, code, type = 'login', username = '', password = '') {
+    return request('/users/email-auth', { method: 'POST', body: JSON.stringify({ email, code, type, username, password }) });
+  },
+  updateUsername(username) {
+    return request('/users/username', { method: 'PATCH', body: JSON.stringify({ username }) });
+  },
+  getThemePreference() {
+    return request('/users/theme');
+  },
+  updateThemePreference(themePreference) {
+    return request('/users/theme', { method: 'PATCH', body: JSON.stringify({ themePreference }) });
   },
 
   // 项目

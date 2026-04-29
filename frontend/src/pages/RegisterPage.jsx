@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Card, Form, Input, Button, Typography, App } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { api, Storage } from '../api';
 
 const { Title, Text } = Typography;
@@ -10,19 +10,46 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const [submitting, setSubmitting] = useState(false);
+  const [form] = Form.useForm();
+  const [countdown, setCountdown] = useState(0);
 
-  if (Storage.getToken()) {
-    navigate('/', { replace: true });
-    return null;
+  useEffect(() => {
+    if (Storage.getToken()) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
+  // 倒计时
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  // 发送验证码
+  async function handleSendCode() {
+    const email = form.getFieldValue('email');
+    if (!email) {
+      message.warning('请输入邮箱');
+      return;
+    }
+    try {
+      await api.sendEmailCode(email, 'register');
+      message.success('验证码已发送，请查收邮件');
+      setCountdown(60);
+    } catch (err) {
+      message.error(err.message);
+    }
   }
 
-  async function handleSubmit(values) {
+  // 邮箱注册
+  async function handleRegister(values) {
     setSubmitting(true);
     try {
-      await api.register(values.username, values.password);
-      const loginRes = await api.login(values.username, values.password);
-      Storage.setToken(loginRes.data.token);
-      Storage.setUser(loginRes.data.user);
+      const res = await api.emailAuth(values.email, values.code, 'register', '', values.password);
+      Storage.setToken(res.data.token);
+      Storage.setUser(res.data.user);
       navigate('/', { replace: true });
     } catch (err) {
       message.error(err.message);
@@ -36,28 +63,56 @@ export default function RegisterPage() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg-sidebar)',
     }}>
-      <Card style={{
-        width: 420, borderRadius: 16, border: 'none',
-        background: 'var(--bg-card)',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
-      }} bordered={false}>
+      <Card
+        style={{
+          width: 420,
+          borderRadius: 16,
+          background: 'var(--bg-card)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
+        }}
+        variant="borderless"
+      >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>CPTodo</div>
           <Text type="secondary" style={{ fontSize: 14 }}>注册一个新的账号</Text>
         </div>
-        <Form layout="vertical" onFinish={handleSubmit} autoComplete="off" size="large">
-          <Form.Item name="username" rules={[
-            { required: true, message: '请输入用户名' },
-            { min: 3, max: 50, message: '用户名长度需在 3-50 个字符之间' },
+
+        <Form form={form} layout="vertical" onFinish={handleRegister} autoComplete="off" size="large">
+          <Form.Item name="email" rules={[
+            { required: true, message: '请输入邮箱' },
+            { type: 'email', message: '邮箱格式不正确' },
           ]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" maxLength={50} />
+            <Input prefix={<MailOutlined />} placeholder="邮箱地址" />
           </Form.Item>
+
+          <Form.Item name="code" rules={[
+            { required: true, message: '请输入验证码' },
+            { len: 6, message: '验证码为6位数字' },
+          ]}>
+            <Input
+              placeholder="验证码"
+              maxLength={6}
+              suffix={
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={countdown > 0}
+                  onClick={handleSendCode}
+                  style={{ padding: 0 }}
+                >
+                  {countdown > 0 ? `${countdown}秒后重试` : '发送验证码'}
+                </Button>
+              }
+            />
+          </Form.Item>
+
           <Form.Item name="password" rules={[
-            { required: true, message: '请输入密码' },
+            { required: true, message: '请设置密码' },
             { min: 6, message: '密码长度不能少于 6 位' },
           ]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码（至少 6 位）" />
+            <Input.Password prefix={<LockOutlined />} placeholder="设置密码（至少 6 位）" />
           </Form.Item>
+
           <Form.Item name="confirmPassword" dependencies={['password']} rules={[
             { required: true, message: '请确认密码' },
             ({ getFieldValue }) => ({
@@ -69,12 +124,14 @@ export default function RegisterPage() {
           ]}>
             <Input.Password prefix={<LockOutlined />} placeholder="确认密码" />
           </Form.Item>
+
           <Form.Item style={{ marginBottom: 16 }}>
             <Button type="primary" htmlType="submit" block loading={submitting}>
               注册
             </Button>
           </Form.Item>
         </Form>
+
         <div style={{ textAlign: 'center' }}>
           <Text type="secondary">已有账号？<Link to="/login">去登录</Link></Text>
         </div>

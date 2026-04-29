@@ -73,7 +73,7 @@ async function getItems(req, res) {
     let sql = `
       SELECT i.id, i.user_id, i.project_id, i.parent_id, i.type, i.title,
         i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring,
-        i.sort_order, i.created_at
+        i.sort_order, i.created_at, i.updated_at
       FROM items i`;
 
     const conditions = ['i.user_id = ?', 'i.deleted_at IS NULL'];
@@ -233,7 +233,7 @@ async function createItem(req, res) {
     }
 
     const [newItems] = await pool.execute(
-      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at
+      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [insertId]
     );
@@ -318,7 +318,7 @@ async function updateItem(req, res) {
       values.push(project_id || null);
     }
 
-    if (priority !== undefined && item.type === 'task') {
+    if (priority !== undefined) {
       updates.push('priority = ?');
       values.push(priority || 'normal');
     }
@@ -353,7 +353,7 @@ async function updateItem(req, res) {
     );
 
     const [updated] = await pool.execute(
-      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at
+      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [itemId]
     );
@@ -452,7 +452,7 @@ async function getTrashItems(req, res) {
     let sql = `
       SELECT i.id, i.user_id, i.project_id, i.type, i.title,
         i.content, i.notes, i.due_date, i.completed, i.priority,
-        i.deleted_at, i.created_at,
+        i.deleted_at, i.created_at, i.updated_at,
         p.name AS project_name
       FROM items i
       LEFT JOIN projects p ON p.id = i.project_id

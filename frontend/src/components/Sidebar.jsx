@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { Layout, Button, Input, Badge, Popconfirm, Tooltip, Dropdown, Modal } from 'antd';
+import { useState, useEffect } from 'react';
+import { Layout, Button, Input, Badge, Popconfirm, Tooltip, Dropdown, Modal, Form, message } from 'antd';
 import {
   FileTextOutlined, CalendarOutlined, ScheduleOutlined,
   SyncOutlined, DeleteOutlined, WarningOutlined,
   PlusOutlined, EditOutlined, LogoutOutlined,
   FolderOutlined, BgColorsOutlined, CheckOutlined, CalendarFilled,
-  CaretRightOutlined,
+  CaretRightOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { useTheme } from '../ThemeContext';
+import { api, Storage } from '../api';
 
 const { Sider } = Layout;
 
@@ -95,6 +96,41 @@ export default function Sidebar({
   const [projectsExpanded, setProjectsExpanded] = useState(false);
   const [tagsExpanded, setTagsExpanded] = useState(false);
 
+  // 设置弹窗状态
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm] = Form.useForm();
+  const [user, setUser] = useState(null);
+
+  // 获取当前用户信息
+  useEffect(() => {
+    setUser(Storage.getUser());
+  }, []);
+
+  // 打开设置弹窗
+  function openSettings() {
+    settingsForm.setFieldsValue({ username: user?.username || '' });
+    setSettingsOpen(true);
+  }
+
+  // 保存用户名
+  async function handleSaveSettings() {
+    try {
+      const values = await settingsForm.validateFields();
+      await api.updateUsername(values.username);
+      const updatedUser = { ...user, username: values.username };
+      Storage.setUser(updatedUser);
+      setUser(updatedUser);
+      message.success('用户名已更新');
+      setSettingsOpen(false);
+    } catch (err) {
+      if (err.errorFields) {
+        message.warning('请检查输入');
+      } else {
+        message.error(err.message || '更新失败');
+      }
+    }
+  }
+
   function openAddTag() {
     setTagModalMode('add');
     setTagModalName('');
@@ -147,7 +183,10 @@ export default function Sidebar({
     <Sider width={240} style={{ background: 'var(--bg-sidebar)', borderRight: 'none', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* 头部 */}
       <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.5px' }}>CPTodo</span>
+        <span
+          style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.5px', cursor: 'pointer' }}
+          onClick={openSettings}
+        >CPTodo</span>
         <div style={{ display: 'flex', gap: 4 }}>
           <Dropdown menu={{ items: themeMenuItems, selectedKeys: [themeKey] }} trigger={['click']}>
             <Tooltip title="切换主题"><Button type="text" size="small" icon={<BgColorsOutlined />} style={{ color: 'var(--fg-muted)' }} /></Tooltip>
@@ -392,6 +431,43 @@ export default function Sidebar({
           <div>
             <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 8 }}>标签颜色</div>
             <ColorPicker value={tagModalColor} onChange={setTagModalColor} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* 设置弹窗 */}
+      <Modal
+        title="设置"
+        open={settingsOpen}
+        onCancel={() => setSettingsOpen(false)}
+        onOk={handleSaveSettings}
+        okText="保存"
+        cancelText="取消"
+        destroyOnHidden
+      >
+        <div style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 6 }}>当前邮箱</div>
+            <div style={{ fontSize: 14, color: 'var(--fg)' }}>{user?.email || '-'}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 6 }}>用户名</div>
+            <Form form={settingsForm} layout="vertical">
+              <Form.Item name="username" rules={[
+                { min: 3, max: 50, message: '用户名长度需在 3-50 个字符之间' },
+              ]}>
+                <Input
+                  prefix={<UserOutlined />}
+                  placeholder="设置了用户名后可直接使用用户名登录"
+                  maxLength={50}
+                />
+              </Form.Item>
+            </Form>
+            {user?.username ? (
+              <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>您已设置用户名，可以使用用户名登录</div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>您尚未设置用户名，只能使用邮箱登录</div>
+            )}
           </div>
         </div>
       </Modal>

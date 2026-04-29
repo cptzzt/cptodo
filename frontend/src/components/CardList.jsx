@@ -61,19 +61,20 @@ export default function CardList({
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       {batchMode && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
             <Checkbox checked={allSelected} onChange={(e) => onBatchSelectAll(e.target.checked ? selectableItems : [])} />
             <span>全选 ({selectableItems.length})</span>
           </label>
-          <Text type="secondary" style={{ cursor: 'pointer', fontSize: 13 }} onClick={onExitBatch}>退出</Text>
         </div>
       )}
 
       {items.map((item) => {
         const isNote = item.type === 'note';
-        const overdue = !isNote && isOverdue(item);
+        const isRecurring = !!item.recurring;
+        const overdue = !isNote && !isRecurring && isOverdue(item);
         const completed = !!item.completed;
+        const isRecurringView = currentView === 'recurring';
 
         const showProject = item.project_id && (['today', 'week', 'expired'].includes(currentView) || currentView.startsWith('tag-'));
         const proj = showProject ? projects.find((p) => p.id === item.project_id) : null;
@@ -93,7 +94,7 @@ export default function CardList({
               cursor: 'pointer',
               border: selectedId === item.id ? '1px solid var(--accent)' : '1px solid var(--border)',
               boxShadow: selectedId === item.id ? '0 4px 16px color-mix(in srgb, var(--accent) 12%, transparent)' : '0 1px 3px rgba(0,0,0,0.04)',
-              opacity: completed ? 0.5 : 1,
+              opacity: completed && !isRecurringView ? 0.5 : 1,
               transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
             onMouseEnter={(e) => {
@@ -135,7 +136,12 @@ export default function CardList({
                     {formatDate(item.due_date)}
                   </span>
                 )}
-                {item.recurring && (
+                {item.recurring && completed && isRecurringView && (
+                  <span style={{ color: 'var(--complete)', fontWeight: 500, fontSize: 12 }}>
+                    {item.recurring === 'daily' ? '今日已完成' : '本周已完成'}
+                  </span>
+                )}
+                {item.recurring && (!isRecurringView || !completed) && (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontWeight: 500 }}><SyncOutlined style={{ fontSize: 11 }} /> {RECURRING_LABELS[item.recurring]}</span>
                 )}
                 {item.priority === 'important' && !completed && <StarFilled style={{ color: 'var(--important)', fontSize: 12 }} />}
@@ -145,7 +151,7 @@ export default function CardList({
               </div>
             </div>
 
-            {!isNote && (
+            {!isNote && !isRecurringView && (
               <div style={{ flexShrink: 0 }}>
                 <Checkbox checked={completed} onChange={(e) => { e.stopPropagation(); onToggleComplete(item.id, e.target.checked); }} />
               </div>

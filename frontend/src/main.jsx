@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import App from './App';
 import './styles/global.css';
+import './favicon';
 
 function ProtectedRoute({ children }) {
   if (!Storage.getToken()) {
@@ -25,6 +26,8 @@ function ThemedConfigProvider({ children }) {
       theme={{
         token: {
           colorPrimary: theme.antd.colorPrimary,
+          colorWarning: theme.antd.colorPrimary,
+          colorSuccess: theme.antd.colorPrimary,
           borderRadius: 10,
           fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
           colorBgContainer: theme.antd.colorBgContainer,

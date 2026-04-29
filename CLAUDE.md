@@ -10,11 +10,12 @@
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 前端 | HTML + CSS + JS | 原生实现，功能完善后将转前端框架 |
+| 前端 | React + Ant Design | 从原生 JS 迁移 |
 | 后端 | Node.js + Express | 简化后端开发的框架 |
-| 数据库 | MySQL | 关系型数据库，用 DBeaver 管理 |
-| 服务器 | 腾讯云 Debian | 公网 IP：122.51.29.69 |
-| 部署 | 手动部署 + deploy.sh | pm2 管理后端进程 |
+| 数据库 | MariaDB | 关系型数据库（MySQL 分支），用 DBeaver 管理 |
+| 服务器 | 腾讯云 Debian 4核4G | 公网 IP：124.220.19.21（旧：122.51.29.69 已停用） |
+| 域名 | cptodo.top | 已配置，未备案 |
+| 部署 | deploy-react.sh | pm2 管理后端进程 |
 
 ## 项目阶段
 

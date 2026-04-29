@@ -37,7 +37,7 @@ function isToday(s) { return s && toDateStr(s) === today(); }
 function isThisWeek(s) { if (!s) return false; const d = toDateStr(s); return d >= weekStart() && d <= weekEnd(); }
 
 export default function App() {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('notes');
   const [selectedId, setSelectedId] = useState(null);
@@ -85,7 +85,7 @@ export default function App() {
         if (!showCompleted) items = items.filter((i) => !i.completed); break;
       case 'recurring':
         items = allItems.filter((i) => i.recurring);
-        if (!showCompleted) items = items.filter((i) => !i.completed); break;
+        break;
       case 'expired':
         items = allItems.filter((i) => { if (i.type !== 'task' || i.completed || i.recurring || !i.due_date) return false; return toDateStr(i.due_date) < weekStart(); }); break;
       default:
@@ -146,22 +146,22 @@ export default function App() {
     catch (e) { toast.error(e.message); }
   }
 
-  async function handleSave(id, data) {
-    try { await api.updateItem(id, data); toast.success('保存成功'); setSelectedId(null); loadData(); }
-    catch (e) { toast.error(e.message); }
+  async function handleSave(id, data, tagsToAdd = [], tagsToRemove = []) {
+    try {
+      await api.updateItem(id, data);
+      await Promise.all([
+        ...tagsToAdd.map((tagId) => api.addItemTag(id, tagId)),
+        ...tagsToRemove.map((tagId) => api.removeItemTag(id, tagId)),
+      ]);
+      toast.success('保存成功');
+      setSelectedId(null);
+      loadData();
+    } catch (e) { toast.error(e.message); }
   }
 
   async function handleDelete(item) {
     try { await api.deleteItem(item.id); toast.success('已移入回收站'); setSelectedId(null); loadData(); }
     catch (e) { toast.error(e.message); }
-  }
-
-  async function handleAddItemTag(itemId, tagId) {
-    try { await api.addItemTag(itemId, tagId); loadData(); } catch (e) { toast.error(e.message); }
-  }
-
-  async function handleRemoveItemTag(itemId, tagId) {
-    try { await api.removeItemTag(itemId, tagId); loadData(); } catch (e) { toast.error(e.message); }
   }
 
   async function handleAddProject(name) {
@@ -174,7 +174,7 @@ export default function App() {
 
   async function handleDeleteProject(p) {
     if (p.item_count > 0) {
-      toast.error(`项目「${p.name}」下还有 ${p.item_count} 个任务或随笔，请先清空项目`);
+      message.warning(`项目「${p.name}」下还有 ${p.item_count} 个任务或随笔，请先清空项目`);
       return;
     }
     try { await api.deleteProject(p.id); toast.success('已删除'); if (currentView === 'project-' + p.id) setCurrentView('notes'); loadData(); }
@@ -191,14 +191,27 @@ export default function App() {
 
   async function handleDeleteTag(t) {
     if (t.item_count > 0) {
-      toast.error(`标签「${t.name}」下还有 ${t.item_count} 个关联任务，请先在标签视图内解除关联`);
+      message.warning(`标签「${t.name}」下还有 ${t.item_count} 个关联任务，请先在标签视图内解除关联`);
       return;
     }
     try { await api.deleteTag(t.id); toast.success('已删除'); if (currentView === 'tag-' + t.id) setCurrentView('notes'); loadData(); }
     catch (e) { toast.error(e.message); }
   }
 
-  function handleLogout() { Storage.clear(); navigate('/login', { replace: true }); }
+  function handleLogout() {
+    modal.confirm({
+      title: '退出登录',
+      content: '确定要退出登录吗？',
+      okText: '退出',
+      cancelText: '取消',
+      icon: null,
+      mask: { closable: true },
+      onOk() {
+        Storage.clear();
+        navigate('/login', { replace: true });
+      },
+    });
+  }
 
   async function handleBatchDelete() {
     if (batchSelectedIds.length === 0) return;
@@ -250,7 +263,7 @@ export default function App() {
     item_count: allItems.filter((i) => i.tags?.some((tag) => tag.id === t.id) && !i.completed && !i.deleted_at).length,
   }));
 
-  const showBatchBtn = !['recurring', 'trash'].includes(currentView);
+  const showBatchBtn = !['recurring', 'trash', 'calendar'].includes(currentView);
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}><Spin size="large" /></div>;
 
@@ -272,7 +285,7 @@ export default function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Title level={4} style={{ margin: 0 }}>{getViewTitle()}</Title>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {!['recurring', 'expired', 'trash'].includes(currentView) && (
+              {!['notes', 'recurring', 'expired', 'trash'].includes(currentView) && (
                 <Button size="small" onClick={() => setShowCompleted((v) => !v)}>
                   {showCompleted ? '隐藏已完成' : '显示已完成'}
                 </Button>
@@ -306,7 +319,7 @@ export default function App() {
                   {batchMode ? '取消' : '批量解除'}
                 </Button>
               )}
-              {currentView !== 'expired' && currentView !== 'trash' && (
+              {currentView !== 'notes' && currentView !== 'expired' && currentView !== 'trash' && (
                 <Button type="primary" size="small" onClick={() => setShowAddModal(true)}>+ 新建</Button>
               )}
             </div>
@@ -349,8 +362,7 @@ export default function App() {
       </Content>
 
       <DetailPanel item={selectedItem} projects={projects} allTags={allTags}
-        onClose={() => setSelectedId(null)} onSave={handleSave} onDelete={handleDelete}
-        onAddItemTag={handleAddItemTag} onRemoveItemTag={handleRemoveItemTag} />
+        onClose={() => setSelectedId(null)} onSave={handleSave} onDelete={handleDelete} />
 
       {showAddModal && (
         <AddItemModal currentView={currentView} currentProjectId={currentProjectId}

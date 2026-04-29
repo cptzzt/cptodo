@@ -36,10 +36,16 @@ ssh root@122.51.29.69
 **在哪里执行：** 服务器终端
 
 ```bash
-apt update && apt install -y curl
+apt update
 ```
 
-> **目的：** 更新软件源列表，安装 curl（下载工具）。
+> **目的：** 更新软件源列表。
+
+```bash
+apt install -y curl
+```
+
+> **目的：** 安装 curl（下载工具）。如果服务器已有 curl 可跳过，用 `curl --version` 验证。
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -224,21 +230,20 @@ scp -r D:/SELF/self-project/CPToDo/frontend root@122.51.29.69:/root/todo/fronten
 
 > **目的：** 把后端和前端代码传到服务器。`scp` 是通过 SSH 传文件的命令。
 
-### 错误案例（我们实际踩的坑）
+### 实际目录结构（注意事项）
 
-```bash
-# ❌ 错误写法
-scp -r D:/SELF/self-project/CPToDo/backend root@122.51.29.69:/root/todo
-scp -r D:/SELF/self-project/CPToDo/frontend root@122.51.29.69:/root/todo
+后端文件散落在 `/root/todo/` 根目录（不是 `/root/todo/backend/`），这是早期部署时 scp 路径问题导致的。
+
+**服务器实际结构：**
+```
+/root/todo/
+├── src/           # 后端源码（controllers、routes、utils、app.js）
+├── .env           # 环境变量配置
+├── node_modules/  # 依赖包
+└── package.json
 ```
 
-**为什么会出错：** `scp -r 源文件夹 目标路径` 的行为取决于目标路径是否已存在：
-- 目标路径**不存在** → scp 把目标路径当作新文件夹名，源文件夹的**内容**直接散在里面
-- 目标路径**已存在** → scp 在里面创建以源文件夹**命名**的子目录
-
-第一条命令执行时 `/root/todo` 不存在，所以 backend 的文件直接散落在 `/root/todo/` 里，没有创建 `/root/todo/backend/`。第二条命令时 `/root/todo` 已存在，所以正确创建了 `/root/todo/frontend/`。
-
-**结果：** 后端文件散落在 `/root/todo/` 根目录，不影响功能但不整洁。
+**原因：** 第一条 scp 命令执行时 `/root/todo` 不存在，scp 把目标路径当作新文件夹名，backend 的内容直接散落在里面。
 
 **教训：** scp 上传时，目标路径必须明确写到最终文件夹名，不要依赖 scp 自动创建。
 
@@ -391,3 +396,7 @@ bash D:/SELF/self-project/CPToDo/deploy.sh
 3. 通过 `pm2 restart todo` 重启后端
 
 > `.env` 和 `node_modules` 不会被覆盖，只传代码文件。
+
+---
+
+> **新服务器迁移流程：** 见 [deployment-new.md](deployment-new.md)

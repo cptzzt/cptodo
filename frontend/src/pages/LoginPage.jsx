@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Card, Form, Input, Button, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
@@ -11,10 +11,11 @@ export default function LoginPage() {
   const { message } = App.useApp();
   const [submitting, setSubmitting] = useState(false);
 
-  if (Storage.getToken()) {
-    navigate('/', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (Storage.getToken()) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   async function handleSubmit(values) {
     setSubmitting(true);
@@ -35,21 +36,24 @@ export default function LoginPage() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg-sidebar)',
     }}>
-      <Card style={{
-        width: 420, borderRadius: 16, border: 'none',
-        background: 'var(--bg-card)',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
-      }} bordered={false}>
+      <Card
+        style={{
+          width: 420,
+          borderRadius: 16,
+          background: 'var(--bg-card)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
+        }}
+        variant="borderless"
+      >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>CPTodo</div>
           <Text type="secondary" style={{ fontSize: 14 }}>登录以继续使用</Text>
         </div>
         <Form layout="vertical" onFinish={handleSubmit} autoComplete="off" size="large">
           <Form.Item name="username" rules={[
-            { required: true, message: '请输入用户名' },
-            { min: 3, max: 50, message: '用户名长度需在 3-50 个字符之间' },
+            { required: true, message: '请输入用户名或邮箱' },
           ]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" maxLength={50} />
+            <Input prefix={<UserOutlined />} placeholder="用户名 / 邮箱" />
           </Form.Item>
           <Form.Item name="password" rules={[
             { required: true, message: '请输入密码' },
