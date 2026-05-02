@@ -4,12 +4,13 @@ const { authenticateToken } = require('../middleware/auth');
 const {
   getItems, createItem, updateItem, deleteItem, addItemTag, removeItemTag,
   getTrashItems, restoreItem, permanentDeleteItem,
-  batchRestoreItems, batchPermanentDeleteItems
+  batchRestoreItems, batchPermanentDeleteItems, searchItems
 } = require('../controllers/itemController');
 
 // 所有接口都需要登录
 router.use(authenticateToken);
 
+router.get('/search', searchItems);
 router.get('/', getItems);
 router.post('/', createItem);
 router.put('/:id', updateItem);

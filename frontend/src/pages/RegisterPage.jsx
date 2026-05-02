@@ -58,14 +58,17 @@ export default function RegisterPage() {
     }
   }
 
+  const isMobile = window.innerWidth < 768;
+
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-sidebar)',
+      minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg-sidebar)', padding: isMobile ? '16px' : '0',
     }}>
       <Card
         style={{
-          width: 420,
+          width: isMobile ? '100%' : 420,
+          maxWidth: 420,
           borderRadius: 16,
           background: 'var(--bg-card)',
           boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
@@ -98,7 +101,7 @@ export default function RegisterPage() {
                   size="small"
                   disabled={countdown > 0}
                   onClick={handleSendCode}
-                  style={{ padding: 0 }}
+                  style={{ padding: 0, color: 'var(--accent)' }}
                 >
                   {countdown > 0 ? `${countdown}秒后重试` : '发送验证码'}
                 </Button>
@@ -133,7 +136,7 @@ export default function RegisterPage() {
         </Form>
 
         <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">已有账号？<Link to="/login">去登录</Link></Text>
+          <Text type="secondary">已有账号？<Link to="/login" style={{ color: 'var(--accent)' }}>去登录</Link></Text>
         </div>
       </Card>
     </div>

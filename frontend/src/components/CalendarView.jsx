@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Calendar, Badge, Typography } from 'antd';
+import { Calendar, Badge, Typography, Grid } from 'antd';
 import { StarFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
   // value 可能是 undefined，确保有默认值
@@ -71,6 +71,8 @@ function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
 }
 
 export default function CalendarView({ items, onSelectDate, onAddItem, selectedDate, showCompleted }) {
+  const { md } = Grid.useBreakpoint();
+  const isMobile = !md;
   const [currentMonth, setCurrentMonth] = useState(dayjs());
 
   // 确保 selectedDate 有默认值（今天）
@@ -80,7 +82,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   const dateTaskCounts = useMemo(() => {
     const counts = {};
     items.forEach((item) => {
-      if (!item.due_date || item.completed || item.type !== 'task') return;
+      if (!item.due_date || item.completed || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return;
       // 处理时区：从数据库来的日期是 UTC，需要转本地日期
       const dateStr = item.due_date.split('T')[0];
       // 用 dayjs 解析并使用本地时区
@@ -94,7 +96,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   const selectedDateTasks = useMemo(() => {
     if (!effectiveSelectedDate) return [];
     return items.filter((item) => {
-      if (!item.due_date || item.type !== 'task') return false;
+      if (!item.due_date || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return false;
       if (!showCompleted && item.completed) return false;
       const localDate = dayjs(item.due_date).format('YYYY-MM-DD');
       return localDate === effectiveSelectedDate;
@@ -127,7 +129,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       {/* 日历区域 */}
-      <div style={{ padding: '16px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: isMobile ? '12px 12px' : '16px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
         <Calendar
           value={dayjs(effectiveSelectedDate)}
           onSelect={(date) => onSelectDate(date.format('YYYY-MM-DD'))}
@@ -136,10 +138,11 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
           cellRender={{ current: dateCellRender, month: monthCellRender }}
           headerRender={(props) => <CalendarHeader {...props} selectedDate={selectedDate} onClearDate={handleClearDate} />}
         />
+        <Text type="secondary" style={{ fontSize: 11, display: 'block', textAlign: 'center', marginTop: 4 }}>无具体日期的任务不在日历视图中</Text>
       </div>
 
       {/* 选中日期的任务 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 12px' : '16px 24px' }}>
         {effectiveSelectedDate ? (
           <>
             <Title level={5} style={{ marginBottom: 16 }}>

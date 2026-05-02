@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Drawer, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App } from 'antd';
+import { Drawer, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
 import { StarFilled, StarOutlined } from '@ant-design/icons';
+import { api } from '../api';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -13,6 +14,7 @@ export default function DetailPanel({
   onClose,
   onSave,
   onDelete,
+  onRefresh,
 }) {
   const { message } = App.useApp();
   const [title, setTitle] = useState('');
@@ -24,6 +26,9 @@ export default function DetailPanel({
   const [projectId, setProjectId] = useState('');
   const [convertToTask, setConvertToTask] = useState(false);
   const [pendingTags, setPendingTags] = useState([]);
+  const [projectLabelId, setProjectLabelId] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [shelved, setShelved] = useState(false);
 
   useEffect(() => {
     if (!item) return;
@@ -41,7 +46,13 @@ export default function DetailPanel({
     setProjectId(item.project_id || '');
     setConvertToTask(false);
     setPendingTags(item.tags ? [...item.tags] : []);
+    setProjectLabelId(item.project_label_id || '');
+    setIsPrivate(!!item.is_private);
+    setShelved(!!item.shelved);
   }, [item]);
+
+  const { md } = Grid.useBreakpoint();
+  const isMobile = !md;
 
   if (!item) return null;
 
@@ -51,7 +62,7 @@ export default function DetailPanel({
   function handleSave() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    const data = { title: trimmedTitle, notes: notes.trim(), priority };
+    const data = { title: trimmedTitle, notes: notes.trim(), priority, is_private: isPrivate ? 1 : 0, shelved: shelved ? 1 : 0 };
     if (isNote && convertToTask) {
       const hasDueDate = !!dueDate;
       const hasProject = !!projectId;
@@ -63,13 +74,20 @@ export default function DetailPanel({
       data.type = 'task';
       data.due_date = dueDate || null;
       if (projectId) data.project_id = projectId;
+      if (projectLabelId) data.project_label_id = projectLabelId;
+    } else if (isNote) {
+      data.project_id = projectId || null;
+      data.project_label_id = projectLabelId || null;
     }
     if (!isNote) {
       data.content = content.trim();
       data.due_date = dueDate || null;
       data.priority = priority;
       data.completed = completed;
-      if (!isRecurring) data.project_id = projectId || null;
+      if (!isRecurring) {
+        data.project_id = projectId || null;
+        data.project_label_id = projectLabelId || null;
+      }
     }
 
     // 计算标签变更
@@ -88,9 +106,9 @@ export default function DetailPanel({
     <Drawer
       title={item.title}
       placement="right"
-      size="default"
       onClose={onClose}
       open={!!item}
+      styles={{ body: { padding: isMobile ? '12px 16px' : undefined }, wrapper: isMobile ? {} : { width: 480 } }}
       extra={
         <Button
           type="text"
@@ -115,11 +133,11 @@ export default function DetailPanel({
       }
     >
       {/* 类型标记 */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <Tag color={isNote ? 'green' : isRecurring ? 'purple' : 'blue'}>
           {isNote ? '随笔' : isRecurring ? '重复任务' : '任务'}
         </Tag>
-        {!isNote && priority === 'important' && (
+        {priority === 'important' && (
           <Tag color="var(--important)" icon={<StarFilled />}>重要</Tag>
         )}
       </div>
@@ -162,8 +180,8 @@ export default function DetailPanel({
         </div>
       )}
 
-      {/* 每周重复任务 - 选择星期几 */}
-      {isRecurring && item.recurring === 'weekly' && (
+      {/* 每周重复任务 target=1 - 选择星期几 */}
+      {isRecurring && item.recurring === 'weekly' && !(item.recurring_target > 1) && (
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>重复日期</Text>
           <Select value={dueDate ? new Date(dueDate).getDay() : undefined} onChange={(targetDay) => {
@@ -186,6 +204,26 @@ export default function DetailPanel({
         </div>
       )}
 
+      {/* 频次目标进度 */}
+      {isRecurring && item.recurring_target > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>每周目标</Text>
+          <div style={{ fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button size="small" onClick={async () => {
+                const cur = item.recurring_count || 0;
+                if (cur > 0) { await api.updateItem(item.id, { recurring_count: cur - 1 }); onRefresh?.(); }
+              }} disabled={(item.recurring_count || 0) <= 0}>-</Button>
+              <span>{item.recurring_count || 0} / {item.recurring_target} 次</span>
+              <Button size="small" onClick={async () => {
+                const cur = item.recurring_count || 0;
+                if (cur < item.recurring_target) { await api.updateItem(item.id, { recurring_count: cur + 1 }); onRefresh?.(); }
+              }} disabled={(item.recurring_count || 0) >= item.recurring_target}>+</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 所属项目 */}
       {!isRecurring && (
         <div style={{ marginBottom: 16 }}>
@@ -198,19 +236,46 @@ export default function DetailPanel({
         </div>
       )}
 
+      {/* 项目标签 */}
+      {!isRecurring && (() => {
+        const currentProject = projects.find((p) => p.id === projectId);
+        const labels = currentProject?.labels || [];
+        if (labels.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>项目专属标签</Text>
+            <Select value={projectLabelId || undefined} onChange={setProjectLabelId} style={{ width: '100%' }} allowClear placeholder="无标签">
+              {labels.map((l) => (
+                <Select.Option key={l.id} value={l.id}>{l.name}</Select.Option>
+              ))}
+            </Select>
+          </div>
+        );
+      })()}
+
       {/* 已完成（仅任务） */}
       {!isNote && (
         <div style={{ marginBottom: 16 }}>
           <Checkbox checked={completed} onChange={(e) => setCompleted(e.target.checked)}>
             标记为已完成
           </Checkbox>
-          {isRecurring && (
+          {isRecurring && !(item.recurring_target > 1) && (
             <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4, marginLeft: 24 }}>
               下个周期会自动创建
             </div>
           )}
         </div>
       )}
+
+      {/* 隐私 & 搁置 */}
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16 }}>
+        <Checkbox checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)}>
+          Private
+        </Checkbox>
+        <Checkbox checked={shelved} onChange={(e) => setShelved(e.target.checked)}>
+          暂时搁置
+        </Checkbox>
+      </div>
 
       {/* 标签 */}
       <div style={{ marginBottom: 16 }}>

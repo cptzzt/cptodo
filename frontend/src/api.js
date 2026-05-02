@@ -7,6 +7,18 @@ const KEYS = {
   USER: 'todo_user'
 };
 
+// 检查 token 是否过期（提前 10 秒判定，避免边界情况）
+export function isTokenExpired() {
+  const token = Storage.getToken();
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return Date.now() >= (payload.exp - 10) * 1000;
+  } catch {
+    return true;
+  }
+}
+
 export const Storage = {
   getToken() {
     return localStorage.getItem(KEYS.TOKEN);
@@ -38,10 +50,12 @@ async function request(url, options = {}) {
     ...options
   };
   const response = await fetch(`${API_BASE}${url}`, config);
-  const data = await response.json();
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    if ((response.status === 401 || response.status === 403) && !url.includes('/login') && !url.includes('/register') && !url.includes('/email-auth')) {
       Storage.clear();
+      window.location.href = '/login';
     }
     throw new Error(data.message || '请求失败');
   }
@@ -84,6 +98,12 @@ export const api = {
   updateProject(id, data) { return request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
   deleteProject(id) { return request(`/projects/${id}`, { method: 'DELETE' }); },
 
+  // 项目专属标签
+  getProjectLabels(projectId) { return request(`/projects/${projectId}/labels`); },
+  createProjectLabel(projectId, data) { return request(`/projects/${projectId}/labels`, { method: 'POST', body: JSON.stringify(data) }); },
+  updateProjectLabel(id, data) { return request(`/projects/labels/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
+  deleteProjectLabel(id) { return request(`/projects/labels/${id}`, { method: 'DELETE' }); },
+
   // 标签
   getTags() { return request('/tags'); },
   createTag(data) { return request('/tags', { method: 'POST', body: JSON.stringify(data) }); },
@@ -91,6 +111,7 @@ export const api = {
   deleteTag(id) { return request(`/tags/${id}`, { method: 'DELETE' }); },
 
   // 条目
+  searchItems(q) { return request(`/items/search?q=${encodeURIComponent(q)}`); },
   getItems(params = {}) {
     const query = Object.entries(params)
       .filter(([, v]) => v !== undefined && v !== null && v !== '')

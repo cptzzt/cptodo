@@ -7,6 +7,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html, body {
@@ -86,4 +87,52 @@ body {
 .ant-input-affix-wrapper:focus,
 .ant-input-affix-wrapper-focused {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 767px) {
+  /* 隐藏滚动条 */
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Drawer 全屏 */
+  .ant-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 移动端 Modal 全屏 */
+  .ant-modal {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px !important;
+  }
+
+  /* 移动端按钮缩小 */
+  .ant-btn {
+    height: 28px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+  }
+
+  .ant-btn-sm {
+    height: 22px !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+  }
+
+  /* 移动端 Input 缩小 */
+  .ant-input,
+  .ant-input-affix-wrapper {
+    min-height: 34px !important;
+    padding: 4px 10px !important;
+  }
+
+  /* 移动端页面安全区域 */
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* 移动端 Calendar 优化 */
+  .ant-picker-calendar .ant-picker-panel {
+    border: none;
+  }
 }

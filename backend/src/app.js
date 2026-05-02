@@ -6,6 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const tagRoutes = require('./routes/tagRoutes');
+const projectLabelRoutes = require('./routes/projectLabelRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,7 @@ app.use(express.json());
 // 路由
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/projects', projectLabelRoutes);  // 项目标签路由（必须在 projectRoutes 之前）
 app.use('/api/projects', projectRoutes);
 app.use('/api/tags', tagRoutes);
 

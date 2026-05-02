@@ -6,7 +6,7 @@ async function getTags(req, res) {
     const userId = req.user.userId;
 
     const [tags] = await pool.execute(
-      `SELECT t.id, t.name, t.color, t.created_at,
+      `SELECT t.id, t.name, t.color, t.is_private, t.created_at,
         COUNT(i.id) AS item_count
        FROM tags t
        LEFT JOIN item_tags it ON it.tag_id = t.id
@@ -28,26 +28,26 @@ async function getTags(req, res) {
 async function createTag(req, res) {
   try {
     const userId = req.user.userId;
-    const { name, color } = req.body;
+    const { name, color, is_private } = req.body;
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, message: '标签名称不能为空' });
     }
-    if (name.length > 50) {
-      return res.status(400).json({ success: false, message: '标签名称不能超过 50 个字符' });
+    if (name.length > 20) {
+      return res.status(400).json({ success: false, message: '标签名称不能超过 20 个字符' });
     }
 
     const tagColor = color || '#4f46e5';
 
     const [result] = await pool.execute(
-      'INSERT INTO tags (user_id, name, color) VALUES (?, ?, ?)',
-      [userId, name.trim(), tagColor]
+      'INSERT INTO tags (user_id, name, color, is_private) VALUES (?, ?, ?, ?)',
+      [userId, name.trim(), tagColor, is_private ? 1 : 0]
     );
 
     res.status(201).json({
       success: true,
       message: '标签创建成功',
-      data: { id: result.insertId, name: name.trim(), color: tagColor }
+      data: { id: result.insertId, name: name.trim(), color: tagColor, is_private: is_private ? 1 : 0 }
     });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -63,13 +63,13 @@ async function updateTag(req, res) {
   try {
     const userId = req.user.userId;
     const tagId = req.params.id;
-    const { name, color } = req.body;
+    const { name, color, is_private } = req.body;
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, message: '标签名称不能为空' });
     }
-    if (name.length > 50) {
-      return res.status(400).json({ success: false, message: '标签名称不能超过 50 个字符' });
+    if (name.length > 20) {
+      return res.status(400).json({ success: false, message: '标签名称不能超过 20 个字符' });
     }
 
     const updates = [];
@@ -81,6 +81,11 @@ async function updateTag(req, res) {
     if (color) {
       updates.push('color = ?');
       values.push(color);
+    }
+
+    if (is_private !== undefined) {
+      updates.push('is_private = ?');
+      values.push(is_private ? 1 : 0);
     }
 
     values.push(tagId, userId);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal, Tabs, Checkbox, Button, Empty, Popconfirm, Typography } from 'antd';
 import { FileTextOutlined, CheckSquareOutlined, FolderOutlined } from '@ant-design/icons';
 import { api } from '../api';
@@ -22,10 +22,14 @@ function typeLabel(type) {
   return type === 'note' ? '随笔' : type === 'task' ? '任务' : '项目';
 }
 
-export default function TrashView({ onClose, onRefresh }) {
-  const [tab, setTab] = useState('task');
+export default function TrashView({ onClose, onRefresh, highlightId }) {
+  const [tab, setTab] = useState(() => {
+    if (!highlightId) return 'task';
+    return 'task';
+  });
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
+  const highlightRef = useRef(null);
 
   async function loadTrash() {
     try {
@@ -43,6 +47,49 @@ export default function TrashView({ onClose, onRefresh }) {
   }
 
   useEffect(() => { loadTrash(); }, [tab]);
+
+  // 高亮定位：数据加载后滚动到目标项
+  useEffect(() => {
+    if (highlightId && items.length > 0) {
+      const found = items.find((i) => i.id === highlightId);
+      if (found) {
+        setSelectedIds([highlightId]);
+        setTimeout(() => {
+          highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    }
+  }, [highlightId, items]);
+
+  // 根据 highlightId 的类型自动切换 tab
+  useEffect(() => {
+    if (!highlightId) return;
+    const allTabs = ['task', 'note', 'project'];
+    let found = false;
+    const tryTab = async (idx) => {
+      if (idx >= allTabs.length) return;
+      const t = allTabs[idx];
+      try {
+        let data;
+        if (t === 'project') {
+          const res = await api.getTrashProjects();
+          data = (res.data || []).map((p) => ({ ...p, type: 'project' }));
+        } else {
+          const res = await api.getTrashItems({ type: t });
+          data = res.data || [];
+        }
+        if (data.some((i) => i.id === highlightId)) {
+          setTab(t);
+          setItems(data);
+          setSelectedIds([highlightId]);
+          found = true;
+        } else if (!found) {
+          tryTab(idx + 1);
+        }
+      } catch (e) { /* ignore */ }
+    };
+    tryTab(0);
+  }, [highlightId]);
 
   const allSelected = items.length > 0 && selectedIds.length === items.length;
   const hasSelected = selectedIds.length > 0;
@@ -88,11 +135,12 @@ export default function TrashView({ onClose, onRefresh }) {
     <Modal
       title="回收站"
       open={true}
+      centered
       onCancel={onClose}
       footer={<Button onClick={onClose}>关闭</Button>}
       width={640}
     >
-      <Tabs activeKey={tab} onChange={setTab} items={TAB_ITEMS.map(t => ({ ...t, children: null }))} />
+      <Tabs activeKey={tab} onChange={(k) => { setTab(k); }} items={TAB_ITEMS.map(t => ({ ...t, children: null }))} />
 
       {items.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0', marginBottom: 8 }}>
@@ -120,20 +168,29 @@ export default function TrashView({ onClose, onRefresh }) {
       {items.length === 0 ? (
         <Empty description="回收站是空的" style={{ padding: 40 }} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {items.map((item) => (
-            <div key={item.id}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', background: selectedIds.includes(item.id) ? '#e6f4ff' : 'transparent' }}
-              onClick={() => toggleSelect(item.id)}
-            >
-              <Checkbox checked={selectedIds.includes(item.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(item.id)} />
-              <span style={{ fontSize: 16 }}>{typeIcon(item.type)}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500 }}>{item.title || item.name}</div>
-                <Text type="secondary" style={{ fontSize: 12 }}>{typeLabel(item.type)}</Text>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 400, overflow: 'auto' }}>
+          {items.map((item) => {
+            const isHighlighted = item.id === highlightId;
+            return (
+              <div key={item.id}
+                ref={isHighlighted ? highlightRef : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                  background: isHighlighted ? 'var(--accent-light)' : selectedIds.includes(item.id) ? '#e6f4ff' : 'transparent',
+                  border: isHighlighted ? '1px solid var(--accent)' : '1px solid transparent',
+                  transition: 'all 0.3s',
+                }}
+                onClick={() => toggleSelect(item.id)}
+              >
+                <Checkbox checked={selectedIds.includes(item.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(item.id)} />
+                <span style={{ fontSize: 16 }}>{typeIcon(item.type)}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>{item.title || item.name}</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{typeLabel(item.type)}</Text>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Modal>

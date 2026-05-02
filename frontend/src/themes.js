@@ -46,7 +46,7 @@ const themes = {
       borderMedium: '#C5BEB6',
       overdue: '#C94B3F',
       important: '#D49B3B',
-      complete: '#5B9A6F',
+      complete: '#C4805E',
     },
     antd: {
       colorPrimary: '#D4916E',
@@ -76,7 +76,7 @@ const themes = {
       borderMedium: '#CFC3E2',
       overdue: '#F87171',
       important: '#FBBF24',
-      complete: '#34D399',
+      complete: '#9B7AE8',
     },
     antd: {
       colorPrimary: '#8B5CF6',
@@ -106,7 +106,7 @@ const themes = {
       borderMedium: '#D4D4D4',
       overdue: '#EF4444',
       important: '#EAB308',
-      complete: '#22C55E',
+      complete: '#3385FF',
     },
     antd: {
       colorPrimary: '#0066FF',

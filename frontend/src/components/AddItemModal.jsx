@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, Checkbox } from 'antd';
 import dayjs from 'dayjs';
 
 function toDateStr(val) {
@@ -32,8 +32,11 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('normal');
   const [recurring, setRecurring] = useState('');
+  const [recurringTarget, setRecurringTarget] = useState(1);
   const [weekDay, setWeekDay] = useState('1');
   const [projectId, setProjectId] = useState('');
+  const [projectLabelId, setProjectLabelId] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -41,13 +44,13 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
     else setType('task');
     if (currentView === 'recurring') setRecurring('daily');
     else setRecurring('');
-    if (currentView === 'today') setDueDate(today());
+    setRecurringTarget(1);    if (currentView === 'today') setDueDate(today());
     else if (currentView === 'week') setDueDate(weekEnd());
     else if (currentView === 'calendar' && currentCalendarDate) setDueDate(currentCalendarDate);
     else setDueDate('');
     if (currentView.startsWith('project-')) setProjectId(currentProjectId || '');
     else setProjectId('');
-    setTitle(''); setContent(''); setPriority('normal'); setWeekDay('1');
+    setTitle(''); setContent(''); setPriority('normal'); setWeekDay('1'); setProjectLabelId(''); setIsPrivate(false);
   }, [currentView, currentProjectId, currentCalendarDate]);
 
   const isTask = type === 'task';
@@ -59,20 +62,23 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
 
   const showRecurring = isRecurringView;
   const showDueDate = isTask && !isRecurringView && !isTodayView;
-  const showWeekDay = isRecurringView && recurring === 'weekly';
+  const showWeekDay = isRecurringView && recurring === 'weekly' && recurringTarget === 1;
+  const showRecurringTarget = isRecurringView && recurring === 'weekly';
   const showProject = isTask && !isRecurringView;
   const showContent = isTask;
 
   async function handleSubmit() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    const data = { type, title: trimmedTitle };
+    const data = { type, title: trimmedTitle, is_private: isPrivate ? 1 : 0 };
     if (isTask) {
       data.content = content.trim() || null;
       data.priority = priority;
       if (isRecurringView) {
         data.recurring = recurring || 'daily';
+        data.recurring_target = recurringTarget;
         if (data.recurring === 'daily') data.due_date = today();
+        else if (recurringTarget > 1) data.due_date = weekStart();
         else data.due_date = nextDayOfWeek(parseInt(weekDay));
       } else if (isTodayView) {
         data.due_date = today();
@@ -85,6 +91,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
       }
       if (currentView.startsWith('project-') && currentProjectId) {
         data.project_id = currentProjectId;
+        if (projectLabelId) data.project_label_id = projectLabelId;
       }
     }
     setSubmitting(true);
@@ -97,6 +104,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
       title={isRecurringView ? '新建重复任务' : '新建'}
       open={true}
       onCancel={onCancel}
+      centered
       onOk={handleSubmit}
       okText="确认新建"
       cancelText="取消"
@@ -142,9 +150,22 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
         )}
         {showRecurring && (
           <Form.Item label="重复">
-            <Select value={recurring} onChange={setRecurring}>
+            <Select value={recurring} onChange={(v) => { setRecurring(v); if (v === 'daily') setRecurringTarget(1); }}>
               <Select.Option value="daily">每天</Select.Option>
               <Select.Option value="weekly">每周</Select.Option>
+            </Select>
+          </Form.Item>
+        )}
+        {showRecurringTarget && (
+          <Form.Item label="每周目标次数">
+            <Select value={recurringTarget} onChange={setRecurringTarget}>
+              <Select.Option value={1}>1 次（固定日期）</Select.Option>
+              <Select.Option value={2}>2 次</Select.Option>
+              <Select.Option value={3}>3 次</Select.Option>
+              <Select.Option value={4}>4 次</Select.Option>
+              <Select.Option value={5}>5 次</Select.Option>
+              <Select.Option value={6}>6 次</Select.Option>
+              <Select.Option value={7}>7 次</Select.Option>
             </Select>
           </Form.Item>
         )}
@@ -169,6 +190,25 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
             </Select>
           </Form.Item>
         )}
+        {showProject && currentView.startsWith('project-') && (() => {
+          const currentProject = projects.find((p) => p.id === projectId);
+          const labels = currentProject?.labels || [];
+          if (labels.length === 0) return null;
+          return (
+            <Form.Item label="项目专属标签">
+              <Select value={projectLabelId || undefined} onChange={setProjectLabelId} allowClear placeholder="无标签">
+                {labels.map((l) => (
+                  <Select.Option key={l.id} value={l.id}>{l.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          );
+        })()}
+        <Form.Item>
+          <Checkbox checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)}>
+            Private
+          </Checkbox>
+        </Form.Item>
       </Form>
     </Modal>
   );

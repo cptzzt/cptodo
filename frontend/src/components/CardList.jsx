@@ -1,6 +1,7 @@
-import { Checkbox, Tag, Empty, Typography } from 'antd';
+import { useState, useRef, useEffect } from 'react';
+import { Checkbox, Tag, Empty, Typography, Grid } from 'antd';
 import {
-  FileTextOutlined, CheckSquareOutlined, StarFilled, FolderOutlined, SyncOutlined,
+  FileTextOutlined, CheckSquareOutlined, StarFilled, FolderOutlined, SyncOutlined, LockOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -42,7 +43,65 @@ export default function CardList({
   onBatchToggle,
   onBatchSelectAll,
   onExitBatch,
+  showCompleted,
+  onCheckAuth,
 }) {
+  const { md } = Grid.useBreakpoint();
+  const isMobile = !md;
+  const [completingIds, setCompletingIds] = useState(new Set());
+  const [hidingIds, setHidingIds] = useState(new Set());
+  const [collapsingIds, setCollapsingIds] = useState(new Set());
+  const timerRef = useRef({});
+  const heightMap = useRef({});
+  const scrollRef = useRef(null);
+  const collapsingCount = useRef(0);
+
+  useEffect(() => {
+    setCompletingIds(new Set());
+    setHidingIds(new Set());
+    setCollapsingIds(new Set());
+    Object.values(timerRef.current).forEach(clearTimeout);
+    timerRef.current = {};
+    collapsingCount.current = 0;
+    if (scrollRef.current) scrollRef.current.style.overflowY = 'auto';
+  }, [showCompleted]);
+
+  function handleToggleComplete(id, checked) {
+    if (onCheckAuth && !onCheckAuth()) return;
+    if (checked && !showCompleted) {
+      setCompletingIds((prev) => new Set(prev).add(id));
+      collapsingCount.current++;
+      if (scrollRef.current) scrollRef.current.style.overflowY = 'hidden';
+      timerRef.current[id] = setTimeout(() => {
+        setCompletingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        const h = heightMap.current[id] || 50;
+        heightMap.current[id + '_h'] = h;
+        setCollapsingIds((prev) => new Set(prev).add(id));
+        requestAnimationFrame(() => {
+          const el = heightMap.current[id + '_el'];
+          const collapsedH = el ? el.offsetHeight + 8 : h + 8;
+          requestAnimationFrame(() => {
+            setHidingIds((prev) => new Set(prev).add(id));
+            if (scrollRef.current) scrollRef.current.scrollTop -= collapsedH;
+          });
+        });
+        timerRef.current[id + '_hide'] = setTimeout(() => {
+          collapsingCount.current--;
+          if (collapsingCount.current <= 0 && scrollRef.current) {
+            scrollRef.current.style.overflowY = 'auto';
+          }
+          onToggleComplete(id, checked);
+          delete heightMap.current[id];
+          delete heightMap.current[id + '_h'];
+          delete heightMap.current[id + '_el'];
+          delete timerRef.current[id];
+          delete timerRef.current[id + '_hide'];
+        }, 300);
+      }, 300);
+    } else {
+      onToggleComplete(id, checked);
+    }
+  }
   if (items.length === 0) {
     const viewKey = currentView.startsWith('project-') ? 'project'
       : currentView.startsWith('tag-') ? 'tag'
@@ -59,7 +118,7 @@ export default function CardList({
     && selectableItems.every((i) => batchSelectedIds.includes(i.id));
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: isMobile ? '8px 12px' : '16px 24px', display: 'flex', flexDirection: 'column' }}>
       {batchMode && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
@@ -72,8 +131,9 @@ export default function CardList({
       {items.map((item) => {
         const isNote = item.type === 'note';
         const isRecurring = !!item.recurring;
+        const recurringDone = isRecurring && item.recurring_target > 1 && (item.recurring_count || 0) >= item.recurring_target;
         const overdue = !isNote && !isRecurring && isOverdue(item);
-        const completed = !!item.completed;
+        const completed = !!item.completed || recurringDone;
         const isRecurringView = currentView === 'recurring';
 
         const showProject = item.project_id && (['today', 'week', 'expired'].includes(currentView) || currentView.startsWith('tag-'));
@@ -82,6 +142,7 @@ export default function CardList({
         return (
           <div
             key={item.id}
+            ref={(el) => { if (el) { heightMap.current[item.id] = el.offsetHeight; heightMap.current[item.id + '_el'] = el; } }}
             onClick={(e) => {
               if (e.target.type === 'checkbox') return;
               if (batchMode && !item.recurring) { onBatchToggle(item.id); return; }
@@ -89,13 +150,19 @@ export default function CardList({
             }}
             style={{
               display: 'flex', alignItems: 'center', gap: 12,
-              padding: '12px 16px', borderRadius: 12,
+              marginBottom: hidingIds.has(item.id) || collapsingIds.has(item.id) ? 0 : (isMobile ? 6 : 8),
+              padding: hidingIds.has(item.id) ? '0 16px' : '12px 16px',
+              borderRadius: 12,
               background: selectedId === item.id ? 'var(--accent-light)' : 'var(--bg-card)',
               cursor: 'pointer',
               border: selectedId === item.id ? '1px solid var(--accent)' : '1px solid var(--border)',
               boxShadow: selectedId === item.id ? '0 4px 16px color-mix(in srgb, var(--accent) 12%, transparent)' : '0 1px 3px rgba(0,0,0,0.04)',
-              opacity: completed && !isRecurringView ? 0.5 : 1,
-              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              maxHeight: hidingIds.has(item.id) ? 0 : collapsingIds.has(item.id) ? (heightMap.current[item.id + '_h'] || 50) : undefined,
+              overflow: (hidingIds.has(item.id) || collapsingIds.has(item.id)) ? 'hidden' : undefined,
+              opacity: hidingIds.has(item.id) ? 0 : completingIds.has(item.id) ? 0.5 : 1,
+              transition: (hidingIds.has(item.id) || collapsingIds.has(item.id))
+                ? 'max-height 0.3s cubic-bezier(0.33, 1, 0.68, 1), padding 0.3s cubic-bezier(0.33, 1, 0.68, 1), margin-bottom 0.3s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.3s ease-out'
+                : 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
             onMouseEnter={(e) => {
               if (selectedId !== item.id) {
@@ -126,8 +193,18 @@ export default function CardList({
             </div>
 
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 500, textDecoration: completed ? 'line-through' : 'none', color: completed ? 'var(--fg-muted)' : 'var(--fg-primary)', marginBottom: 2, wordBreak: 'break-word' }}>
-                {item.title}
+              <div style={{ fontSize: 13.5, fontWeight: 500, textDecoration: (completed || completingIds.has(item.id)) ? 'line-through' : 'none', color: (completed || completingIds.has(item.id)) ? 'var(--fg-muted)' : 'var(--fg-primary)', marginBottom: 2, lineHeight: '20px' }}>
+                {item.project_label && currentView.startsWith('project-') && (
+                  <span style={{
+                    display: 'inline-block', verticalAlign: 'middle',
+                    padding: '0 8px', borderRadius: 9999, fontSize: 11, lineHeight: '18px',
+                    background: item.project_label.color + '18', color: item.project_label.color,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {item.project_label.name}
+                  </span>
+                )}{' '}
+                <span>{item.title}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--fg-muted)' }}>
                 {proj && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><FolderOutlined style={{ fontSize: 11 }} /> {proj.name}</span>}
@@ -142,19 +219,44 @@ export default function CardList({
                   </span>
                 )}
                 {item.recurring && (!isRecurringView || !completed) && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontWeight: 500 }}><SyncOutlined style={{ fontSize: 11 }} /> {RECURRING_LABELS[item.recurring]}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontWeight: 500 }}>
+                    <SyncOutlined style={{ fontSize: 11 }} /> {RECURRING_LABELS[item.recurring]}
+                    {item.recurring_target > 1 && <span>({item.recurring_count || 0}/{item.recurring_target})</span>}
+                  </span>
                 )}
                 {item.priority === 'important' && !completed && <StarFilled style={{ color: 'var(--important)', fontSize: 12 }} />}
                 {item.tags && item.tags.map((t) => (
                   <Tag key={t.id} color={t.color} style={{ margin: 0, fontSize: 11 }}>{t.name}</Tag>
                 ))}
+                {item.is_private === 1 && <LockOutlined style={{ color: 'var(--fg-muted)', fontSize: 11 }} />}
               </div>
             </div>
 
             {!isNote && !isRecurringView && (
-              <div style={{ flexShrink: 0 }}>
-                <Checkbox checked={completed} onChange={(e) => { e.stopPropagation(); onToggleComplete(item.id, e.target.checked); }} />
-              </div>
+              item.recurring && item.recurring_target > 1 ? (
+                <div
+                  style={{
+                    flexShrink: 0, cursor: recurringDone ? 'default' : 'pointer',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 42, height: 24, borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: `2px solid ${recurringDone ? 'var(--complete)' : 'var(--accent)'}`,
+                    color: recurringDone ? 'var(--complete)' : 'var(--accent)',
+                    background: recurringDone ? 'var(--accent-light)' : 'transparent',
+                    opacity: recurringDone ? 0.7 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                  onClick={(e) => { e.stopPropagation(); if (!recurringDone) onToggleComplete(item.id, true); }}
+                >
+                  {item.recurring_count || 0}/{item.recurring_target}
+                </div>
+              ) : (
+                <div
+                  style={{ flexShrink: 0, padding: '8px 4px', cursor: 'pointer' }}
+                  onClick={(e) => { if (e.target.closest('.ant-checkbox')) return; e.stopPropagation(); handleToggleComplete(item.id, !(completed || completingIds.has(item.id))); }}
+                >
+                  <Checkbox checked={completed || completingIds.has(item.id)} onChange={(e) => { e.stopPropagation(); handleToggleComplete(item.id, e.target.checked); }} />
+                </div>
+              )
             )}
           </div>
         );

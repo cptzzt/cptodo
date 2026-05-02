@@ -31,14 +31,17 @@ export default function LoginPage() {
     }
   }
 
+  const isMobile = window.innerWidth < 768;
+
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-sidebar)',
+      minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg-sidebar)', padding: isMobile ? '16px' : '0',
     }}>
       <Card
         style={{
-          width: 420,
+          width: isMobile ? '100%' : 420,
+          maxWidth: 420,
           borderRadius: 16,
           background: 'var(--bg-card)',
           boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
@@ -68,7 +71,7 @@ export default function LoginPage() {
           </Form.Item>
         </Form>
         <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">还没有账号？<Link to="/register">去注册</Link></Text>
+          <Text type="secondary">还没有账号？<Link to="/register" style={{ color: 'var(--accent)' }}>去注册</Link></Text>
         </div>
       </Card>
     </div>

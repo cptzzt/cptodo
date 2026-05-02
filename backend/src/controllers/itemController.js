@@ -10,6 +10,7 @@ async function cleanupExpiredRecurring(userId) {
     `SELECT id, user_id, title, content, notes, priority, recurring, due_date
      FROM items
      WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
+     AND recurring_target = 1
      AND deleted_at IS NULL
      AND (
        (recurring = 'daily' AND due_date < CURDATE())
@@ -59,6 +60,18 @@ async function cleanupExpiredRecurring(userId) {
     // 彻底删除旧任务
     await pool.execute('DELETE FROM items WHERE id = ?', [task.id]);
   }
+
+  // 重置 target>1 频次目标任务的计数（周边界）
+  // due_date 存的是上周一，说明需要重置
+  await pool.execute(
+    `UPDATE items
+     SET recurring_count = 0,
+         due_date = DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+     WHERE user_id = ? AND recurring = 'weekly' AND recurring_target > 1
+     AND deleted_at IS NULL
+     AND due_date < DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)`,
+    [userId]
+  );
 }
 
 // 获取列表（支持多种筛选）
@@ -71,8 +84,8 @@ async function getItems(req, res) {
     await cleanupExpiredRecurring(userId);
 
     let sql = `
-      SELECT i.id, i.user_id, i.project_id, i.parent_id, i.type, i.title,
-        i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring,
+      SELECT i.id, i.user_id, i.project_id, i.project_label_id, i.parent_id, i.type, i.title,
+        i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring, i.recurring_target, i.recurring_count, i.is_private, i.shelved,
         i.sort_order, i.created_at, i.updated_at
       FROM items i`;
 
@@ -149,6 +162,33 @@ async function getItems(req, res) {
       });
     }
 
+    // 附加项目专属标签
+    if (items.length > 0) {
+      const labelIds = [...new Set(items.map(i => i.project_label_id).filter(Boolean))];
+      if (labelIds.length > 0) {
+        const placeholders = labelIds.map(() => '?').join(',');
+        const [labelRows] = await pool.execute(
+          `SELECT pl.id, pl.name, pl.color, pl.project_id
+           FROM project_labels pl
+           WHERE pl.id IN (${placeholders})`,
+          labelIds
+        );
+
+        const labelMap = {};
+        labelRows.forEach(row => {
+          labelMap[row.id] = { id: row.id, name: row.name, color: row.color, project_id: row.project_id };
+        });
+
+        items.forEach(item => {
+          item.project_label = item.project_label_id ? labelMap[item.project_label_id] || null : null;
+        });
+      } else {
+        items.forEach(item => {
+          item.project_label = null;
+        });
+      }
+    }
+
     res.json({ success: true, data: items });
   } catch (error) {
     console.error('获取列表错误:', error);
@@ -160,7 +200,7 @@ async function getItems(req, res) {
 async function createItem(req, res) {
   try {
     const userId = req.user.userId;
-    const { project_id, parent_id, type, title, content, notes, due_date, priority, recurring, tag_ids } = req.body;
+    const { project_id, project_label_id, parent_id, type, title, content, notes, due_date, priority, recurring, recurring_target, tag_ids } = req.body;
 
     if (!type || !['note', 'folder', 'task'].includes(type)) {
       return res.status(400).json({ success: false, message: '类型必须为 note、folder 或 task' });
@@ -200,30 +240,53 @@ async function createItem(req, res) {
       return res.status(400).json({ success: false, message: '重复周期无效' });
     }
 
+    if (recurring && recurring_target !== undefined) {
+      if (!Number.isInteger(recurring_target) || recurring_target < 1) {
+        return res.status(400).json({ success: false, message: '频次目标必须为正整数' });
+      }
+      if (recurring_target > 1 && recurring === 'daily') {
+        return res.status(400).json({ success: false, message: '每天重复不支持频次目标大于 1' });
+      }
+    }
+
     // 重复任务不能绑定项目
     if (recurring && project_id) {
       return res.status(400).json({ success: false, message: '重复任务不能绑定项目' });
     }
 
     const itemPriority = priority || 'normal';
+    const targetValue = recurring ? (recurring_target || 1) : 1;
 
     const [result] = await pool.execute(
-      `INSERT INTO items (user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       [
         userId,
         project_id || null,
+        project_label_id || null,
         parent_id || null,
         type,
         title.trim(),
         type === 'task' ? (content ? content.trim() : null) : null,
         notes ? notes.trim() : null,
-        type === 'task' ? (due_date || null) : null,
+        recurring === 'weekly' && targetValue > 1
+          ? null
+          : (type === 'task' ? (due_date || null) : null),
         0,
         itemPriority,
-        type === 'task' ? (recurring || null) : null
+        type === 'task' ? (recurring || null) : null,
+        targetValue,
+        0
       ]
     );
+
+    // target>1 时用 SQL 计算本周一作为 due_date
+    if (recurring === 'weekly' && targetValue > 1) {
+      await pool.execute(
+        `UPDATE items SET due_date = DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) WHERE id = ?`,
+        [result.insertId]
+      );
+    }
 
     const insertId = result.insertId;
 
@@ -233,7 +296,7 @@ async function createItem(req, res) {
     }
 
     const [newItems] = await pool.execute(
-      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at, updated_at
+      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [insertId]
     );
@@ -253,7 +316,7 @@ async function updateItem(req, res) {
   try {
     const userId = req.user.userId;
     const itemId = req.params.id;
-    const { title, content, notes, due_date, completed, parent_id, project_id, priority, recurring, sort_order, type } = req.body;
+    const { title, content, notes, due_date, completed, parent_id, project_id, project_label_id, priority, recurring, recurring_target, recurring_count, sort_order, type, is_private, shelved } = req.body;
 
     // 查询当前项
     const [items] = await pool.execute(
@@ -318,6 +381,11 @@ async function updateItem(req, res) {
       values.push(project_id || null);
     }
 
+    if (project_label_id !== undefined) {
+      updates.push('project_label_id = ?');
+      values.push(project_label_id || null);
+    }
+
     if (priority !== undefined) {
       updates.push('priority = ?');
       values.push(priority || 'normal');
@@ -332,6 +400,16 @@ async function updateItem(req, res) {
       values.push(recurring || null);
     }
 
+    if (recurring_target !== undefined && item.type === 'task') {
+      updates.push('recurring_target = ?');
+      values.push(Math.max(1, parseInt(recurring_target) || 1));
+    }
+
+    if (recurring_count !== undefined && item.type === 'task') {
+      updates.push('recurring_count = ?');
+      values.push(Math.max(0, parseInt(recurring_count) || 0));
+    }
+
     if (parent_id !== undefined && item.type === 'folder') {
       updates.push('parent_id = ?');
       values.push(parent_id || null);
@@ -340,6 +418,16 @@ async function updateItem(req, res) {
     if (sort_order !== undefined) {
       updates.push('sort_order = ?');
       values.push(sort_order);
+    }
+
+    if (is_private !== undefined) {
+      updates.push('is_private = ?');
+      values.push(is_private ? 1 : 0);
+    }
+
+    if (shelved !== undefined) {
+      updates.push('shelved = ?');
+      values.push(shelved ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -353,7 +441,7 @@ async function updateItem(req, res) {
     );
 
     const [updated] = await pool.execute(
-      `SELECT id, user_id, project_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, sort_order, created_at, updated_at
+      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [itemId]
     );
@@ -626,8 +714,60 @@ async function batchPermanentDeleteItems(req, res) {
   }
 }
 
+// 搜索项（包含回收站内的，排除彻底删除的）
+async function searchItems(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { q } = req.query;
+
+    if (!q || q.trim().length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const keyword = `%${q.trim()}%`;
+    const sql = `
+      SELECT i.id, i.user_id, i.project_id, i.type, i.title,
+        i.completed, i.priority, i.recurring, i.recurring_target, i.recurring_count,
+        i.is_private, i.shelved, i.deleted_at, i.due_date,
+        p.name AS project_name
+      FROM items i
+      LEFT JOIN projects p ON p.id = i.project_id
+      WHERE i.user_id = ?
+        AND (i.title LIKE ? OR i.content LIKE ? OR i.notes LIKE ?)
+      ORDER BY i.deleted_at ASC, i.created_at DESC
+      LIMIT 50`;
+    const params = [userId, keyword, keyword, keyword];
+
+    const [items] = await pool.execute(sql, params);
+
+    // 附加标签
+    if (items.length > 0) {
+      const itemIds = items.map(i => i.id);
+      const placeholders = itemIds.map(() => '?').join(',');
+      const [tagRows] = await pool.execute(
+        `SELECT it.item_id, t.id AS tag_id, t.name, t.color
+         FROM item_tags it
+         JOIN tags t ON t.id = it.tag_id
+         WHERE it.item_id IN (${placeholders})`,
+        itemIds
+      );
+      const tagMap = {};
+      tagRows.forEach(row => {
+        if (!tagMap[row.item_id]) tagMap[row.item_id] = [];
+        tagMap[row.item_id].push({ id: row.tag_id, name: row.name, color: row.color });
+      });
+      items.forEach(item => { item.tags = tagMap[item.id] || []; });
+    }
+
+    res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('搜索错误:', error);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+}
+
 module.exports = {
   getItems, createItem, updateItem, deleteItem, addItemTag, removeItemTag,
-  getTrashItems, restoreItem, permanentDeleteItem,
+  getTrashItems, restoreItem, permanentDeleteItem, searchItems,
   batchRestoreItems, batchPermanentDeleteItems
 };
