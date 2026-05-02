@@ -85,6 +85,8 @@ export default function Sidebar({
   privacyMode,
   setPrivacyMode,
   onSearchSelect,
+  allProjects,
+  allTagsList,
 }) {
   const { themeKey, switchTheme, themes, themeKeys } = useTheme();
   const { message, modal } = App.useApp();
@@ -757,8 +759,8 @@ export default function Sidebar({
                   const res = await api.searchItems(val.trim());
                   let data = res.data || [];
                   if (privacyMode) {
-                    const privateProjectIds = (projects || []).filter((p) => p.is_private).map((p) => p.id);
-                    const privateTagIds = (tags || []).filter((t) => t.is_private).map((t) => t.id);
+                    const privateProjectIds = (allProjects || []).filter((p) => p.is_private).map((p) => p.id);
+                    const privateTagIds = (allTagsList || []).filter((t) => t.is_private).map((t) => t.id);
                     data = data.filter((i) => {
                       if (i.is_private) return false;
                       if (i.project_id && privateProjectIds.includes(i.project_id)) return false;

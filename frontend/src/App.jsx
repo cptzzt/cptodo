@@ -424,6 +424,7 @@ export default function App() {
             onEditProject={handleEditProject} onDeleteProject={handleDeleteProject}
             onEditTag={handleEditTag} onDeleteTag={handleDeleteTag}
             allItems={allItems}
+            allProjects={projectsWithCount} allTagsList={allTags}
             onLogout={handleLogout}
             isMobile={isMobile}
             onRefresh={loadData}
@@ -440,6 +441,7 @@ export default function App() {
           onEditProject={handleEditProject} onDeleteProject={handleDeleteProject}
           onEditTag={handleEditTag} onDeleteTag={handleDeleteTag}
           allItems={allItems}
+          allProjects={projectsWithCount} allTagsList={allTags}
           onLogout={handleLogout}
           onRefresh={loadData}
           privacyMode={privacyMode}
