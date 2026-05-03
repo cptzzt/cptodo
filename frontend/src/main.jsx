@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { ThemeProvider, useTheme } from './ThemeContext';
@@ -62,7 +62,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider>
       <ThemedConfigProvider>
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -70,10 +70,12 @@ createRoot(document.getElementById('root')).render(
               <ProtectedRoute>
                 <App />
               </ProtectedRoute>
-            } />
+            }>
+              <Route path="item/:id" element={null} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </ThemedConfigProvider>
     </ThemeProvider>
   </StrictMode>,

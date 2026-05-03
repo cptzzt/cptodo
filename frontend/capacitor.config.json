@@ -1,0 +1,9 @@
+{
+  "appId": "top.cptodo.app",
+  "appName": "CPToDo",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "url": "http://124.220.19.21"
+  }
+}

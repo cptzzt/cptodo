@@ -1,6 +1,6 @@
 const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:3000/api'
-  : '/api';
+  : 'http://124.220.19.21/api';
 
 const KEYS = {
   TOKEN: 'todo_token',
@@ -55,7 +55,7 @@ async function request(url, options = {}) {
   if (!response.ok) {
     if ((response.status === 401 || response.status === 403) && !url.includes('/login') && !url.includes('/register') && !url.includes('/email-auth')) {
       Storage.clear();
-      window.location.href = '/login';
+      window.location.href = '#/login';
     }
     throw new Error(data.message || '请求失败');
   }

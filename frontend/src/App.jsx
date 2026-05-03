@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Layout, Button, Input, Typography, Spin, Popconfirm, App as AntApp, Grid, Drawer, Popover, Checkbox } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import Sidebar from './components/Sidebar';
@@ -40,6 +40,7 @@ function isThisWeek(s) { if (!s) return false; const d = toDateStr(s); return d 
 export default function App() {
   const { message, modal } = AntApp.useApp();
   const navigate = useNavigate();
+  const { id: routeItemId } = useParams();
   const [currentView, setCurrentView] = useState(() => window.innerWidth < 768 ? 'today' : 'notes');
   const [selectedId, setSelectedId] = useState(null);
   const [batchMode, setBatchMode] = useState(false);
@@ -185,15 +186,22 @@ export default function App() {
     expired: allItems.filter((i) => i.type === 'task' && !i.completed && !i.recurring && i.due_date && toDateStr(i.due_date) < weekStart()).length,
   };
 
-  const selectedItem = allItems.find((i) => i.id === selectedId);
   const filteredItems = getFilteredItems();
   const currentProjectId = currentView.startsWith('project-') ? Number(currentView.split('-')[1]) : null;
   const currentTagId = currentView.startsWith('tag-') ? Number(currentView.split('-')[1]) : null;
+
+  // 移动端使用路由控制详情页，PC 端使用状态控制
+  const effectiveSelectedId = isMobile && routeItemId ? Number(routeItemId) : selectedId;
+  const effectiveSelectedItem = allItems.find((i) => i.id === effectiveSelectedId);
 
   // === 操作 ===
   function handleViewChange(view) {
     if (view === 'trash') { setShowTrash(true); return; }
     setCurrentView(view); setSelectedId(null); setBatchMode(false); setBatchSelectedIds([]);
+    // 移动端切换视图时，如果当前在详情页，返回列表
+    if (isMobile && routeItemId) {
+      navigate('/', { replace: true });
+    }
   }
 
   async function handleToggleComplete(id, checked) {
@@ -219,13 +227,22 @@ export default function App() {
       ]);
       toast.success('保存成功');
       setSelectedId(null);
+      // 移动端保存后返回列表
+      if (isMobile && routeItemId) {
+        navigate('/', { replace: true });
+      }
       loadData();
     } catch (e) { toast.error(e.message); }
   }
 
   async function handleDelete(item) {
     if (!checkAuth()) return;
-    try { await api.deleteItem(item.id); toast.success('已移入回收站'); setSelectedId(null); loadData(); }
+    try { await api.deleteItem(item.id); toast.success('已移入回收站'); setSelectedId(null); loadData();
+      // 移动端删除后返回列表
+      if (isMobile && routeItemId) {
+        navigate('/', { replace: true });
+      }
+    }
     catch (e) { toast.error(e.message); }
   }
 
@@ -348,6 +365,10 @@ export default function App() {
   useEffect(() => {
     if (!privacyMode) return;
     setSelectedId(null);
+    // 移动端隐私模式切换时，如果当前在详情页，返回列表
+    if (isMobile && routeItemId) {
+      navigate('/', { replace: true });
+    }
     if (currentView.startsWith('project-')) {
       const pid = Number(currentView.split('-')[1]);
       if (projects.some((p) => p.id === pid && p.is_private)) {
@@ -391,13 +412,17 @@ export default function App() {
     setCurrentView(targetView);
     setSelectedId(item.id);
     setMobileMenuOpen(false);
+    // 移动端搜索选择后导航到详情页
+    if (isMobile) {
+      navigate('/item/' + item.id, { replace: false });
+    }
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh' }}><Spin size="large" /></div>;
 
   return (
     <Layout style={{ height: '100dvh', overflow: 'hidden', position: 'relative' }}>
-      {isMobile && !selectedId && (
+      {isMobile && !effectiveSelectedId && (
         <Button
           type="text"
           icon={<MenuOutlined />}
@@ -498,13 +523,13 @@ export default function App() {
               )}
               {showBatchBtn && !currentView.startsWith('tag-') && (
                 <Button size="small" danger={batchMode}
-                  onClick={() => { if (batchMode) { setBatchMode(false); setBatchSelectedIds([]); } else { setBatchMode(true); setSelectedId(null); } }}>
+                  onClick={() => { if (batchMode) { setBatchMode(false); setBatchSelectedIds([]); } else { setBatchMode(true); setSelectedId(null); if (isMobile && routeItemId) navigate('/', { replace: true }); } }}>
                   {batchMode ? '取消批量' : '批量删除'}
                 </Button>
               )}
               {currentView.startsWith('tag-') && (
                 <Button size="small" type={batchMode ? 'primary' : 'default'} danger={batchMode}
-                  onClick={() => { if (batchMode) { setBatchMode(false); setBatchSelectedIds([]); } else { setBatchMode(true); setSelectedId(null); } }}>
+                  onClick={() => { if (batchMode) { setBatchMode(false); setBatchSelectedIds([]); } else { setBatchMode(true); setSelectedId(null); if (isMobile && routeItemId) navigate('/', { replace: true }); } }}>
                   {batchMode ? '取消' : '批量解除'}
                 </Button>
               )}
@@ -534,14 +559,26 @@ export default function App() {
             items={allItems}
             selectedDate={calendarSelectedDate}
             onSelectDate={setCalendarSelectedDate}
-            onAddItem={(item) => setSelectedId(item.id)}
+            onAddItem={(item) => {
+              if (isMobile) {
+                navigate('/item/' + item.id, { replace: false });
+              } else {
+                setSelectedId(item.id);
+              }
+            }}
             showCompleted={showCompleted}
           />
         ) : (
           <CardList
-            items={filteredItems} currentView={currentView} selectedId={selectedId}
+            items={filteredItems} currentView={currentView} selectedId={effectiveSelectedId}
             projects={projects} batchMode={batchMode} batchSelectedIds={batchSelectedIds}
-            onSelectItem={(item) => setSelectedId(item.id)}
+            onSelectItem={(item) => {
+              if (isMobile) {
+                navigate('/item/' + item.id, { replace: false });
+              } else {
+                setSelectedId(item.id);
+              }
+            }}
             onToggleComplete={handleToggleComplete}
             onBatchToggle={handleBatchToggle}
             onBatchSelectAll={(items) => setBatchSelectedIds(items.map((i) => i.id))}
@@ -552,8 +589,14 @@ export default function App() {
         )}
       </Content>
 
-      <DetailPanel item={selectedItem} projects={visibleProjects} allTags={visibleTags}
-        onClose={() => setSelectedId(null)} onSave={handleSave} onDelete={handleDelete} onRefresh={loadData} />
+      <DetailPanel item={effectiveSelectedItem} projects={visibleProjects} allTags={visibleTags}
+        onClose={() => {
+          if (isMobile) {
+            navigate(-1);
+          } else {
+            setSelectedId(null);
+          }
+        }} onSave={handleSave} onDelete={handleDelete} onRefresh={loadData} />
 
       {showAddModal && (
         <AddItemModal currentView={currentView} currentProjectId={currentProjectId}
