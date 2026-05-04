@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout, Button, Input, Typography, Spin, Popconfirm, App as AntApp, Grid, Drawer, Popover, Checkbox } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
+import { App as CapacitorApp } from '@capacitor/app';
 import Sidebar from './components/Sidebar';
 import CardList from './components/CardList';
 import DetailPanel from './components/DetailPanel';
@@ -57,6 +58,8 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { md } = Grid.useBreakpoint();
   const isMobile = !md;
+  const detailPanelCloseRef = useRef(null);
+  const isDetailOpenRef = useRef(false);
 
   // 初始化 toast 的 message 实例
   useEffect(() => {
@@ -88,6 +91,26 @@ export default function App() {
     const timer = setInterval(check, 60000);
     return () => clearInterval(timer);
   }, [navigate]);
+
+  // 拦截 Android 返回按钮事件
+  useEffect(() => {
+    let handler;
+    CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      if (isDetailOpenRef.current) {
+        // 详情页打开时，先播放关闭动画，再返回
+        detailPanelCloseRef.current?.();
+      } else if (canGoBack) {
+        window.history.back();
+      } else {
+        CapacitorApp.exitApp();
+      }
+    }).then((listenerHandle) => {
+      handler = listenerHandle;
+    });
+    return () => {
+      handler?.remove();
+    };
+  }, []);
 
   // 操作前检查 token，过期返回 false 表示已跳转
   function checkAuth() {
@@ -193,6 +216,11 @@ export default function App() {
   // 移动端使用路由控制详情页，PC 端使用状态控制
   const effectiveSelectedId = isMobile && routeItemId ? Number(routeItemId) : selectedId;
   const effectiveSelectedItem = allItems.find((i) => i.id === effectiveSelectedId);
+
+  // 同步详情页打开状态到 ref（供 Capacitor 返回按钮使用）
+  useEffect(() => {
+    isDetailOpenRef.current = !!effectiveSelectedId;
+  }, [effectiveSelectedId]);
 
   // === 操作 ===
   function handleViewChange(view) {
@@ -596,7 +624,8 @@ export default function App() {
           } else {
             setSelectedId(null);
           }
-        }} onSave={handleSave} onDelete={handleDelete} onRefresh={loadData} />
+        }} onSave={handleSave} onDelete={handleDelete} onRefresh={loadData}
+        closeRef={detailPanelCloseRef} />
 
       {showAddModal && (
         <AddItemModal currentView={currentView} currentProjectId={currentProjectId}

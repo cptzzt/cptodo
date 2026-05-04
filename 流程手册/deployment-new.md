@@ -429,3 +429,67 @@ pm2 save
 |------|--------|---------|------|
 | `deploy-react.sh` | 旧（122.51.29.69） | `/root/todo/`（散落） | 运行中 |
 | `deploy-react-new.sh` | 新（124.220.19.21） | `/root/todo/backend/`（正确） | 迁移中 |
+
+---
+
+## Capacitor APK 打包相关
+
+> **本节作用：** 记录 Capacitor 打包 APK 时容易混淆的概念和踩过的坑。
+
+### deploy 脚本 vs cap sync：两个独立操作
+
+| 操作 | 做了什么 | 影响范围 |
+|------|---------|---------|
+| `deploy-react-new.sh` | build + scp 上传 dist 到服务器 | **网页版**更新 |
+| `npx cap sync android` | build + 复制 dist 到 android/assets | **APK** 更新 |
+
+**踩过的坑：** 以为执行了 `deploy-react-new.sh` 后 APK 会自动拿到最新代码，实际上两者完全独立。`deploy-react-new.sh` 只更新服务器，APK 打包用的是 `android/app/src/main/assets/public/` 目录里的文件，必须通过 `npx cap sync android` 才能更新。
+
+**正确打包流程：**
+```bash
+cd frontend
+npm run build
+npx cap sync android        # 关键：把最新 dist 复制到 Android 项目
+# 然后在 Android Studio 中 Build APK
+```
+
+### capacitor.config.json 的两个位置
+
+| 位置 | 说明 |
+|------|------|
+| `frontend/capacitor.config.json` | **源文件**，手动编辑这个 |
+| `frontend/android/app/src/main/assets/capacitor.config.json` | **副本**，`npx cap sync` 自动从源文件复制过来的 |
+
+APK 运行时读取的是**副本**。修改源文件后必须执行 `npx cap sync android` 才能让 APK 生效。
+
+### server.url 远程调试配置
+
+`capacitor.config.json` 中的 `server.url` 字段：
+
+```json
+{
+  "server": {
+    "url": "http://124.220.19.21"   // 有这个字段
+  }
+}
+```
+
+| 配置 | APK 加载代码的来源 | 适用场景 |
+|------|-------------------|---------|
+| **有** `url` | 从远程服务器拉取 Web 代码 | **开发调试**：改完代码部署到服务器，APK 自动加载最新代码，不用重新打包 |
+| **无** `url` | 从本地 assets 目录读取 | **正式发布**：代码打包进 APK，离线也能用 |
+
+**实践结论：建议保留 `url` 配置。** 原因：
+1. 去掉 `url` 后 Capacitor WebView 的 `location.hostname` 会变成 `localhost`，导致 API 请求指向 `http://localhost:3000/api`（手机上连不到），即使代码中加了 `window.Capacitor` 检测也可能有其他 Capacitor 层面的问题
+2. 保留 `url` 时，APK 从服务器加载前端代码，`location.hostname` 是服务器 IP，API 请求正常
+3. 服务器本来就要在线运行（API 请求需要它），前端代码加载很快
+4. 开发调试时改完代码部署服务器，APK 自动拿到最新版本，反而更方便
+
+### Capacitor App 插件（返回按钮拦截）
+
+```bash
+npm install @capacitor/app
+npx cap sync android
+```
+
+安装后 Capacitor 可以拦截 Android 原生返回按钮事件（`backButton`），在 JavaScript 层面控制返回行为。如果不安装，按返回按钮会直接退出 App 或执行浏览器默认的 `history.back()`。

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Drawer, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
 import { StarFilled, StarOutlined } from '@ant-design/icons';
 import { api } from '../api';
@@ -15,8 +15,12 @@ export default function DetailPanel({
   onSave,
   onDelete,
   onRefresh,
+  closeRef,
 }) {
   const { message } = App.useApp();
+  const [open, setOpen] = useState(!!item);
+  const closingRef = useRef(false);
+  const closingItemRef = useRef(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [notes, setNotes] = useState('');
@@ -31,7 +35,18 @@ export default function DetailPanel({
   const [shelved, setShelved] = useState(false);
 
   useEffect(() => {
-    if (!item) return;
+    if (!item) {
+      // item 消失了（路由返回），播放关闭动画
+      if (closingItemRef.current) {
+        closingRef.current = true;
+        setOpen(false);
+        setTimeout(() => {
+          closingRef.current = false;
+          closingItemRef.current = null;
+        }, 300);
+      }
+      return;
+    }
     setTitle(item.title || '');
     setContent(item.content || '');
     setNotes(item.notes || '');
@@ -49,15 +64,39 @@ export default function DetailPanel({
     setProjectLabelId(item.project_label_id || '');
     setIsPrivate(!!item.is_private);
     setShelved(!!item.shelved);
+    setOpen(true);
+    closingRef.current = false;
+    closingItemRef.current = item;
   }, [item]);
+
+  function handleClose() {
+    closingRef.current = true;
+    setOpen(false);
+    setTimeout(() => {
+      if (closingRef.current) {
+        closingRef.current = false;
+        closingItemRef.current = null;
+        onClose();
+      }
+    }, 300);
+  }
+
+  // 暴露关闭函数给父组件
+  useEffect(() => {
+    if (closeRef) {
+      closeRef.current = item ? handleClose : null;
+    }
+  }, [item, closeRef]);
 
   const { md } = Grid.useBreakpoint();
   const isMobile = !md;
 
-  if (!item) return null;
+  // 关闭动画期间用 closingItemRef 渲染，否则 item 没了就直接隐藏
+  const displayItem = item || closingItemRef.current;
+  if (!displayItem) return null;
 
-  const isNote = item.type === 'note';
-  const isRecurring = !!item.recurring;
+  const isNote = displayItem.type === 'note';
+  const isRecurring = !!displayItem.recurring;
 
   function handleSave() {
     const trimmedTitle = title.trim();
@@ -91,12 +130,12 @@ export default function DetailPanel({
     }
 
     // 计算标签变更
-    const originalTagIds = (item.tags || []).map((t) => t.id);
+    const originalTagIds = (displayItem.tags || []).map((t) => t.id);
     const pendingTagIds = pendingTags.map((t) => t.id);
     const tagsToAdd = pendingTagIds.filter((id) => !originalTagIds.includes(id));
     const tagsToRemove = originalTagIds.filter((id) => !pendingTagIds.includes(id));
 
-    onSave(item.id, data, tagsToAdd, tagsToRemove);
+    onSave(displayItem.id, data, tagsToAdd, tagsToRemove);
   }
 
   const pendingTagIds = pendingTags.map((t) => t.id);
@@ -104,10 +143,10 @@ export default function DetailPanel({
 
   return (
     <Drawer
-      title={item.title}
+      title={displayItem.title}
       placement="right"
-      onClose={onClose}
-      open={!!item}
+      onClose={handleClose}
+      open={open}
       styles={{ body: { padding: isMobile ? '12px 16px' : undefined }, wrapper: isMobile ? {} : { width: 480 } }}
       extra={
         <Button
@@ -121,7 +160,7 @@ export default function DetailPanel({
           <Button type="primary" onClick={handleSave} style={{ flex: 1 }}>保存修改</Button>
           <Popconfirm
             title="确认删除？"
-            onConfirm={() => onDelete(item)}
+            onConfirm={() => onDelete(displayItem)}
             icon={null}
             okText="删除"
             cancelText="取消"
@@ -181,7 +220,7 @@ export default function DetailPanel({
       )}
 
       {/* 每周重复任务 target=1 - 选择星期几 */}
-      {isRecurring && item.recurring === 'weekly' && !(item.recurring_target > 1) && (
+      {isRecurring && displayItem.recurring === 'weekly' && !(displayItem.recurring_target > 1) && (
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>重复日期</Text>
           <Select value={dueDate ? new Date(dueDate).getDay() : undefined} onChange={(targetDay) => {
@@ -205,20 +244,20 @@ export default function DetailPanel({
       )}
 
       {/* 频次目标进度 */}
-      {isRecurring && item.recurring_target > 1 && (
+      {isRecurring && displayItem.recurring_target > 1 && (
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>每周目标</Text>
           <div style={{ fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Button size="small" onClick={async () => {
-                const cur = item.recurring_count || 0;
-                if (cur > 0) { await api.updateItem(item.id, { recurring_count: cur - 1 }); onRefresh?.(); }
-              }} disabled={(item.recurring_count || 0) <= 0}>-</Button>
-              <span>{item.recurring_count || 0} / {item.recurring_target} 次</span>
+                const cur = displayItem.recurring_count || 0;
+                if (cur > 0) { await api.updateItem(displayItem.id, { recurring_count: cur - 1 }); onRefresh?.(); }
+              }} disabled={(displayItem.recurring_count || 0) <= 0}>-</Button>
+              <span>{displayItem.recurring_count || 0} / {displayItem.recurring_target} 次</span>
               <Button size="small" onClick={async () => {
-                const cur = item.recurring_count || 0;
-                if (cur < item.recurring_target) { await api.updateItem(item.id, { recurring_count: cur + 1 }); onRefresh?.(); }
-              }} disabled={(item.recurring_count || 0) >= item.recurring_target}>+</Button>
+                const cur = displayItem.recurring_count || 0;
+                if (cur < displayItem.recurring_target) { await api.updateItem(displayItem.id, { recurring_count: cur + 1 }); onRefresh?.(); }
+              }} disabled={(displayItem.recurring_count || 0) >= displayItem.recurring_target}>+</Button>
             </div>
           </div>
         </div>
@@ -259,7 +298,7 @@ export default function DetailPanel({
           <Checkbox checked={completed} onChange={(e) => setCompleted(e.target.checked)}>
             标记为已完成
           </Checkbox>
-          {isRecurring && !(item.recurring_target > 1) && (
+          {isRecurring && !(displayItem.recurring_target > 1) && (
             <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4, marginLeft: 24 }}>
               下个周期会自动创建
             </div>
@@ -308,11 +347,11 @@ export default function DetailPanel({
       {/* 创建/更新时间 */}
       <div style={{ marginTop: 24, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
         <Text style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'block', marginBottom: 4 }}>
-          创建于 {new Date(item.created_at).toLocaleString('zh-CN')}
+          创建于 {new Date(displayItem.created_at).toLocaleString('zh-CN')}
         </Text>
-        {item.updated_at && item.updated_at !== item.created_at && (
+        {displayItem.updated_at && displayItem.updated_at !== displayItem.created_at && (
           <Text style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'block' }}>
-            更新于 {new Date(item.updated_at).toLocaleString('zh-CN')}
+            更新于 {new Date(displayItem.updated_at).toLocaleString('zh-CN')}
           </Text>
         )}
       </div>
