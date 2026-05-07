@@ -232,7 +232,7 @@ export default function CardList({
               </div>
             </div>
 
-            {!isNote && !isRecurringView && (
+            {!isNote && !isRecurringView && !batchMode && (
               item.recurring && item.recurring_target > 1 ? (
                 <div
                   style={{
@@ -249,14 +249,14 @@ export default function CardList({
                 >
                   {item.recurring_count || 0}/{item.recurring_target}
                 </div>
-              ) : (
+              ) : !batchMode ? (
                 <div
                   style={{ flexShrink: 0, padding: '8px 4px', cursor: 'pointer' }}
                   onClick={(e) => { if (e.target.closest('.ant-checkbox')) return; e.stopPropagation(); handleToggleComplete(item.id, !(completed || completingIds.has(item.id))); }}
                 >
                   <Checkbox checked={completed || completingIds.has(item.id)} onChange={(e) => { e.stopPropagation(); handleToggleComplete(item.id, e.target.checked); }} />
                 </div>
-              )
+              ) : null
             )}
           </div>
         );

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Calendar, Badge, Typography, Grid } from 'antd';
+import { Calendar, Badge, Typography, Grid, Select, Button } from 'antd';
 import { StarFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -43,34 +43,31 @@ function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
       <div style={{ display: 'flex', gap: 8 }}>
-        <select
+        <Select
           value={year}
-          onChange={handleYearChange}
-          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--fg)' }}
-        >
-          {yearOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select
+          onChange={(val) => handleYearChange({ target: { value: val } })}
+          size="small"
+          style={{ width: 90 }}
+          options={yearOptions}
+        />
+        <Select
           value={month}
-          onChange={handleMonthChange}
-          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--fg)' }}
-        >
-          {monthOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
+          onChange={(val) => handleMonthChange({ target: { value: val } })}
+          size="small"
+          style={{ width: 70 }}
+          options={monthOptions}
+        />
       </div>
       {selectedDate && selectedDate !== todayStr && onClearDate && (
-        <button
-          onClick={onClearDate}
-          style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--fg-muted)', cursor: 'pointer' }}
-        >
+        <Button size="small" onClick={onClearDate}>
           回到今天
-        </button>
+        </Button>
       )}
     </div>
   );
 }
 
-export default function CalendarView({ items, onSelectDate, onAddItem, selectedDate, showCompleted }) {
+export default function CalendarView({ items, onSelectDate, onAddItem, selectedDate }) {
   const { md } = Grid.useBreakpoint();
   const isMobile = !md;
   const [currentMonth, setCurrentMonth] = useState(dayjs());
@@ -78,11 +75,11 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   // 确保 selectedDate 有默认值（今天）
   const effectiveSelectedDate = selectedDate || dayjs().format('YYYY-MM-DD');
 
-  // 按日期统计任务数量
+  // 按日期统计任务数量（日历视图始终显示所有任务，不受"显示已完成"筛选影响）
   const dateTaskCounts = useMemo(() => {
     const counts = {};
     items.forEach((item) => {
-      if (!item.due_date || item.completed || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return;
+      if (!item.due_date || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return;
       // 处理时区：从数据库来的日期是 UTC，需要转本地日期
       const dateStr = item.due_date.split('T')[0];
       // 用 dayjs 解析并使用本地时区
@@ -92,16 +89,15 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
     return counts;
   }, [items]);
 
-  // 当前选中日期的任务
+  // 当前选中日期的任务（日历视图始终显示所有任务，不受"显示已完成"筛选影响）
   const selectedDateTasks = useMemo(() => {
     if (!effectiveSelectedDate) return [];
     return items.filter((item) => {
       if (!item.due_date || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return false;
-      if (!showCompleted && item.completed) return false;
       const localDate = dayjs(item.due_date).format('YYYY-MM-DD');
       return localDate === effectiveSelectedDate;
     });
-  }, [items, effectiveSelectedDate, showCompleted]);
+  }, [items, effectiveSelectedDate]);
 
   function onPanelChange(date) {
     setCurrentMonth(date);

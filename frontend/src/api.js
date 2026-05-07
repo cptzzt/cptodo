@@ -60,11 +60,6 @@ async function request(url, options = {}) {
     throw new Error(data.message || '请求失败');
   }
 
-  // 主题 API 调试日志
-  if (url.includes('/theme')) {
-    console.log('[API] 主题接口响应:', data);
-  }
-
   return data;
 }
 

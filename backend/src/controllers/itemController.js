@@ -200,7 +200,7 @@ async function getItems(req, res) {
 async function createItem(req, res) {
   try {
     const userId = req.user.userId;
-    const { project_id, project_label_id, parent_id, type, title, content, notes, due_date, priority, recurring, recurring_target, tag_ids } = req.body;
+    const { project_id, project_label_id, parent_id, type, title, content, notes, due_date, priority, recurring, recurring_target, tag_ids, is_private } = req.body;
 
     if (!type || !['note', 'folder', 'task'].includes(type)) {
       return res.status(400).json({ success: false, message: '类型必须为 note、folder 或 task' });
@@ -257,28 +257,31 @@ async function createItem(req, res) {
     const itemPriority = priority || 'normal';
     const targetValue = recurring ? (recurring_target || 1) : 1;
 
-    const [result] = await pool.execute(
-      `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [
-        userId,
-        project_id || null,
-        project_label_id || null,
-        parent_id || null,
-        type,
-        title.trim(),
-        type === 'task' ? (content ? content.trim() : null) : null,
-        notes ? notes.trim() : null,
-        recurring === 'weekly' && targetValue > 1
-          ? null
-          : (type === 'task' ? (due_date || null) : null),
-        0,
-        itemPriority,
-        type === 'task' ? (recurring || null) : null,
-        targetValue,
-        0
-      ]
-    );
+    const insertSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
+    const insertParams = [
+      userId,
+      project_id || null,
+      project_label_id || null,
+      parent_id || null,
+      type,
+      title.trim(),
+      type === 'task' ? (content ? content.trim() : null) : null,
+      notes ? notes.trim() : null,
+      recurring === 'weekly' && targetValue > 1
+        ? null
+        : (type === 'task' ? (due_date || null) : null),
+      0,
+      itemPriority,
+      type === 'task' ? (recurring || null) : null,
+      targetValue,
+      0,
+      is_private ? 1 : 0
+    ];
+    // 使用 pool.escape 处理参数，避免 mysql2 参数绑定问题
+    const e = (v) => v === null || v === undefined ? 'NULL' : pool.escape(v);
+    const directSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private) VALUES (${userId}, ${e(project_id || null)}, ${e(project_label_id || null)}, ${e(parent_id || null)}, ${e(type)}, ${e(title.trim())}, ${e(type === 'task' ? (content ? content.trim() : null) : null)}, ${e(notes ? notes.trim() : null)}, ${e(recurring === 'weekly' && targetValue > 1 ? null : (type === 'task' ? (due_date || null) : null))}, 0, ${e(itemPriority)}, ${e(type === 'task' ? (recurring || null) : null)}, ${e(targetValue)}, 0, ${e(is_private ? 1 : 0)})`;
+    const [result] = await pool.query(directSql);
 
     // target>1 时用 SQL 计算本周一作为 due_date
     if (recurring === 'weekly' && targetValue > 1) {

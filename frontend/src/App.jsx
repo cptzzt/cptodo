@@ -198,15 +198,25 @@ export default function App() {
     return '';
   }
 
+  // 隐私模式下过滤掉 private 的条目（自身、所属项目、所属标签任一为 private 即隐藏）
+  const visibleItems = privacyMode
+    ? allItems.filter((i) => {
+        if (i.is_private) return false;
+        if (i.project_id && projects.some((p) => p.id === i.project_id && p.is_private)) return false;
+        if (i.tags && i.tags.some((t) => allTags.some((tag) => tag.id === t.id && tag.is_private))) return false;
+        return true;
+      })
+    : allItems;
+
   const badges = {
-    today: allItems.filter((i) => i.type === 'task' && !i.completed && !((i.recurring && i.recurring_target > 1)) && (isToday(i.due_date) || (i.recurring && !i.due_date))).length,
-    week: allItems.filter((i) => {
+    today: visibleItems.filter((i) => i.type === 'task' && !i.completed && !((i.recurring && i.recurring_target > 1)) && (isToday(i.due_date) || (i.recurring && !i.due_date))).length,
+    week: visibleItems.filter((i) => {
       if (i.type !== 'task' || i.completed) return false;
       if (i.recurring && i.recurring_target > 1) return (i.recurring_count || 0) < i.recurring_target;
       if (isToday(i.due_date)) return false;
       return isThisWeek(i.due_date) || (i.recurring && !i.due_date);
     }).length,
-    expired: allItems.filter((i) => i.type === 'task' && !i.completed && !i.recurring && i.due_date && toDateStr(i.due_date) < weekStart()).length,
+    expired: visibleItems.filter((i) => i.type === 'task' && !i.completed && !i.recurring && i.due_date && toDateStr(i.due_date) < weekStart()).length,
   };
 
   const filteredItems = getFilteredItems();
@@ -290,6 +300,10 @@ export default function App() {
       message.warning(`项目「${p.name}」下还有 ${p.item_count} 个任务或随笔，请先清空项目`);
       return;
     }
+    if (privacyMode && p.hidden_item_count > 0) {
+      message.warning(`项目「${p.name}」下还有 ${p.hidden_item_count} 个隐私任务或随笔未解除关联，关闭隐私模式后可查看，请先清空项目`);
+      return;
+    }
     try { await api.deleteProject(p.id); toast.success('已删除'); if (currentView === 'project-' + p.id) setCurrentView('notes'); loadData(); }
     catch (e) { toast.error(e.message); }
   }
@@ -308,6 +322,10 @@ export default function App() {
     if (!checkAuth()) return;
     if (t.item_count > 0) {
       message.warning(`标签「${t.name}」下还有 ${t.item_count} 个关联任务，请先在标签视图内解除关联`);
+      return;
+    }
+    if (privacyMode && t.hidden_item_count > 0) {
+      message.warning(`标签「${t.name}」下还有 ${t.hidden_item_count} 个隐私任务未解除关联，关闭隐私模式后可查看，请先解除关联`);
       return;
     }
     try { await api.deleteTag(t.id); toast.success('已删除'); if (currentView === 'tag-' + t.id) setCurrentView('notes'); loadData(); }
@@ -373,15 +391,17 @@ export default function App() {
     } catch (err) { toast.error(err.message); }
   }
 
-  const projectsWithCount = projects.map((p) => ({
-    ...p,
-    item_count: allItems.filter((i) => (i.type === 'task' || i.type === 'note') && i.project_id === p.id && !i.completed && !i.recurring).length,
-  }));
+  const projectsWithCount = projects.map((p) => {
+    const visible = visibleItems.filter((i) => (i.type === 'task' || i.type === 'note') && i.project_id === p.id && !i.completed && !i.recurring).length;
+    const hidden = privacyMode ? allItems.filter((i) => (i.type === 'task' || i.type === 'note') && i.project_id === p.id && !i.completed && !i.recurring && visibleItems.every((v) => v.id !== i.id)).length : 0;
+    return { ...p, item_count: visible, hidden_item_count: hidden };
+  });
 
-  const tagsWithCount = allTags.map((t) => ({
-    ...t,
-    item_count: allItems.filter((i) => i.tags?.some((tag) => tag.id === t.id) && !i.completed && !i.deleted_at).length,
-  }));
+  const tagsWithCount = allTags.map((t) => {
+    const visible = visibleItems.filter((i) => i.tags?.some((tag) => tag.id === t.id) && !i.completed && !i.deleted_at).length;
+    const hidden = privacyMode ? allItems.filter((i) => i.tags?.some((tag) => tag.id === t.id) && !i.completed && !i.deleted_at && visibleItems.every((v) => v.id !== i.id)).length : 0;
+    return { ...t, item_count: visible, hidden_item_count: hidden };
+  });
 
   const showBatchBtn = !['recurring', 'trash', 'calendar'].includes(currentView);
 
@@ -584,7 +604,7 @@ export default function App() {
           </div>
         ) : currentView === 'calendar' ? (
           <CalendarView
-            items={allItems}
+            items={visibleItems}
             selectedDate={calendarSelectedDate}
             onSelectDate={setCalendarSelectedDate}
             onAddItem={(item) => {
@@ -594,7 +614,6 @@ export default function App() {
                 setSelectedId(item.id);
               }
             }}
-            showCompleted={showCompleted}
           />
         ) : (
           <CardList
@@ -617,7 +636,7 @@ export default function App() {
         )}
       </Content>
 
-      <DetailPanel item={effectiveSelectedItem} projects={visibleProjects} allTags={visibleTags}
+      <DetailPanel key={effectiveSelectedItem?.id || 'empty'} item={effectiveSelectedItem} projects={visibleProjects} allTags={visibleTags}
         onClose={() => {
           if (isMobile) {
             navigate(-1);
