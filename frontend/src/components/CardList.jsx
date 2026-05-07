@@ -145,7 +145,10 @@ export default function CardList({
             ref={(el) => { if (el) { heightMap.current[item.id] = el.offsetHeight; heightMap.current[item.id + '_el'] = el; } }}
             onClick={(e) => {
               if (e.target.type === 'checkbox') return;
-              if (batchMode && !item.recurring) { onBatchToggle(item.id); return; }
+              if (batchMode) {
+                if (!item.recurring) onBatchToggle(item.id);
+                return;
+              }
               onSelectItem(item);
             }}
             style={{
@@ -154,7 +157,7 @@ export default function CardList({
               padding: hidingIds.has(item.id) ? '0 16px' : '12px 16px',
               borderRadius: 12,
               background: selectedId === item.id ? 'var(--accent-light)' : 'var(--bg-card)',
-              cursor: 'pointer',
+              cursor: batchMode && item.recurring ? 'default' : 'pointer',
               border: selectedId === item.id ? '1px solid var(--accent)' : '1px solid var(--border)',
               boxShadow: selectedId === item.id ? '0 4px 16px color-mix(in srgb, var(--accent) 12%, transparent)' : '0 1px 3px rgba(0,0,0,0.04)',
               maxHeight: hidingIds.has(item.id) ? 0 : collapsingIds.has(item.id) ? (heightMap.current[item.id + '_h'] || 50) : undefined,

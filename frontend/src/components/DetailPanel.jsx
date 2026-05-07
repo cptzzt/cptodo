@@ -33,6 +33,7 @@ export default function DetailPanel({
   const [projectLabelId, setProjectLabelId] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [shelved, setShelved] = useState(false);
+  const [recurringCount, setRecurringCount] = useState(0);
 
   useEffect(() => {
     if (!item) {
@@ -64,6 +65,7 @@ export default function DetailPanel({
     setProjectLabelId(item.project_label_id || '');
     setIsPrivate(!!item.is_private);
     setShelved(!!item.shelved);
+    setRecurringCount(item.recurring_count || 0);
     setOpen(true);
     closingRef.current = false;
     closingItemRef.current = item;
@@ -136,6 +138,11 @@ export default function DetailPanel({
     const tagsToRemove = originalTagIds.filter((id) => !pendingTagIds.includes(id));
 
     onSave(displayItem.id, data, tagsToAdd, tagsToRemove);
+
+    // 如果频次目标发生变更，额外调用接口
+    if (displayItem.recurring_target > 1 && recurringCount !== (displayItem.recurring_count || 0)) {
+      api.updateItem(displayItem.id, { recurring_count: recurringCount });
+    }
   }
 
   const pendingTagIds = pendingTags.map((t) => t.id);
@@ -249,15 +256,11 @@ export default function DetailPanel({
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>每周目标</Text>
           <div style={{ fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Button size="small" onClick={async () => {
-                const cur = displayItem.recurring_count || 0;
-                if (cur > 0) { await api.updateItem(displayItem.id, { recurring_count: cur - 1 }); onRefresh?.(); }
-              }} disabled={(displayItem.recurring_count || 0) <= 0}>-</Button>
-              <span>{displayItem.recurring_count || 0} / {displayItem.recurring_target} 次</span>
-              <Button size="small" onClick={async () => {
-                const cur = displayItem.recurring_count || 0;
-                if (cur < displayItem.recurring_target) { await api.updateItem(displayItem.id, { recurring_count: cur + 1 }); onRefresh?.(); }
-              }} disabled={(displayItem.recurring_count || 0) >= displayItem.recurring_target}>+</Button>
+              <Button size="small" onClick={() => setRecurringCount(Math.max(0, recurringCount - 1))}
+                disabled={recurringCount <= 0}>-</Button>
+              <span>{recurringCount} / {displayItem.recurring_target} 次</span>
+              <Button size="small" onClick={() => setRecurringCount(Math.min(displayItem.recurring_target, recurringCount + 1))}
+                disabled={recurringCount >= displayItem.recurring_target}>+</Button>
             </div>
           </div>
         </div>

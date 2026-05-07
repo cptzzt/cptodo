@@ -39,12 +39,15 @@ export const Storage = {
   }
 };
 
+const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+
 async function request(url, options = {}) {
   const token = Storage.getToken();
   const config = {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(isCapacitor ? { 'X-Platform': 'capacitor' } : {}),
       ...options.headers
     },
     ...options

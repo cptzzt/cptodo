@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Calendar, Badge, Typography, Grid, Select, Button } from 'antd';
+import { Calendar, Typography, Grid, Select, Button, DatePicker, Tag } from 'antd';
 import { StarFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
-  // value 可能是 undefined，确保有默认值
   const safeValue = value || dayjs();
   const monthOptions = useMemo(() => {
     const opts = [];
@@ -18,9 +18,8 @@ function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
 
   const yearOptions = useMemo(() => {
     const currentYear = dayjs().year();
-    const startYear = Math.floor((currentYear - 10) / 10) * 10;
     const opts = [];
-    for (let i = startYear - 50; i < currentYear + 50; i++) {
+    for (let i = currentYear - 10; i < currentYear + 10; i++) {
       opts.push({ label: `${i}年`, value: i });
     }
     return opts;
@@ -67,7 +66,13 @@ function CalendarHeader({ value, onChange, selectedDate, onClearDate }) {
   );
 }
 
-export default function CalendarView({ items, onSelectDate, onAddItem, selectedDate }) {
+export const QUICK_RANGES = [
+  { label: '未来7天', days: 7 },
+  { label: '未来15天', days: 15 },
+  { label: '未来30天', days: 30 },
+];
+
+export default function CalendarView({ items, onSelectDate, onAddItem, selectedDate, dateRange, onSetDateRange }) {
   const { md } = Grid.useBreakpoint();
   const isMobile = !md;
   const [currentMonth, setCurrentMonth] = useState(dayjs());
@@ -75,21 +80,18 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   // 确保 selectedDate 有默认值（今天）
   const effectiveSelectedDate = selectedDate || dayjs().format('YYYY-MM-DD');
 
-  // 按日期统计任务数量（日历视图始终显示所有任务，不受"显示已完成"筛选影响）
+  // 按日期统计任务数量
   const dateTaskCounts = useMemo(() => {
     const counts = {};
     items.forEach((item) => {
       if (!item.due_date || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return;
-      // 处理时区：从数据库来的日期是 UTC，需要转本地日期
-      const dateStr = item.due_date.split('T')[0];
-      // 用 dayjs 解析并使用本地时区
       const localDate = dayjs(item.due_date).format('YYYY-MM-DD');
       counts[localDate] = (counts[localDate] || 0) + 1;
     });
     return counts;
   }, [items]);
 
-  // 当前选中日期的任务（日历视图始终显示所有任务，不受"显示已完成"筛选影响）
+  // 当前选中日期的任务
   const selectedDateTasks = useMemo(() => {
     if (!effectiveSelectedDate) return [];
     return items.filter((item) => {
@@ -99,12 +101,50 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
     });
   }, [items, effectiveSelectedDate]);
 
+  // 日期范围内的任务，按日期分组
+  const rangeTasks = useMemo(() => {
+    if (!dateRange) return null;
+    const grouped = {};
+    items.forEach((item) => {
+      if (!item.due_date || item.type !== 'task' || (item.recurring && item.recurring_target > 1)) return;
+      const localDate = dayjs(item.due_date).format('YYYY-MM-DD');
+      if (localDate >= dateRange.start && localDate <= dateRange.end) {
+        if (!grouped[localDate]) grouped[localDate] = [];
+        grouped[localDate].push(item);
+      }
+    });
+    // 按日期排序
+    const sorted = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+    return sorted;
+  }, [items, dateRange]);
+
   function onPanelChange(date) {
     setCurrentMonth(date);
   }
 
   function handleClearDate() {
-    if (onSelectDate) onSelectDate(null); // 清除后会自动回退到今天
+    if (onSelectDate) onSelectDate(null);
+  }
+
+  function handleQuickRange(days) {
+    const start = dayjs().format('YYYY-MM-DD');
+    const end = dayjs().add(days, 'day').format('YYYY-MM-DD');
+    onSetDateRange?.({ start, end });
+  }
+
+  function handleCustomRange(dates) {
+    if (!dates || dates.length < 2) {
+      onSetDateRange?.(null);
+      return;
+    }
+    onSetDateRange?.({
+      start: dates[0].format('YYYY-MM-DD'),
+      end: dates[1].format('YYYY-MM-DD'),
+    });
+  }
+
+  function handleClearRange() {
+    onSetDateRange?.(null);
   }
 
   function dateCellRender(date) {
@@ -112,8 +152,8 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
     const count = dateTaskCounts[dateStr];
     if (!count) return null;
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', height: '100%' }}>
-        <Badge count={count} size="small" style={{ background: 'var(--accent)', marginTop: 2 }} />
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', paddingTop: 2 }}>
+        <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, lineHeight: 1.3 }}>{count}</span>
       </div>
     );
   }
@@ -122,24 +162,90 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
     return null;
   }
 
+  const taskCard = (task) => (
+    <div key={task.id} onClick={() => onAddItem(task)} style={{
+      padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+      background: task.completed ? 'transparent' : 'var(--bg-card)',
+      border: '1px solid var(--border)',
+      transition: 'all 0.2s',
+      opacity: task.completed ? 0.6 : 1,
+    }} onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? 'var(--fg-muted)' : 'var(--fg)' }}>{task.title}</span>
+        {task.priority === 'important' && <StarFilled style={{ color: 'var(--important)', fontSize: 14 }} />}
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       {/* 日历区域 */}
       <div style={{ padding: isMobile ? '12px 12px' : '16px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-        <Calendar
-          value={dayjs(effectiveSelectedDate)}
-          onSelect={(date) => onSelectDate(date.format('YYYY-MM-DD'))}
-          onPanelChange={onPanelChange}
-          fullscreen={false}
-          cellRender={{ current: dateCellRender, month: monthCellRender }}
-          headerRender={(props) => <CalendarHeader {...props} selectedDate={selectedDate} onClearDate={handleClearDate} />}
-        />
+        {/* 日期范围选择 */}
+        {!isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Text style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', color: 'var(--fg-primary)' }}>日期范围</Text>
+            {QUICK_RANGES.map((r) => (
+              <Button key={r.days} size="small"
+                type={dateRange?.end === dayjs().add(r.days, 'day').format('YYYY-MM-DD') ? 'primary' : 'default'}
+                onClick={() => handleQuickRange(r.days)}
+              >{r.label}</Button>
+            ))}
+            <RangePicker size="small" onChange={handleCustomRange}
+              value={dateRange ? [dayjs(dateRange.start), dayjs(dateRange.end)] : null}
+              style={{ width: 220 }} placeholder={['开始日期', '结束日期']} />
+            {dateRange && <Button size="small" onClick={handleClearRange}>清除范围</Button>}
+          </div>
+        )}
+
+        <div style={isMobile ? { maxHeight: 290, overflow: 'hidden' } : {}}>
+          <Calendar
+            value={dayjs(effectiveSelectedDate)}
+            onSelect={(date) => { onSetDateRange?.(null); onSelectDate(date.format('YYYY-MM-DD')); }}
+            onPanelChange={onPanelChange}
+            fullscreen={false}
+            cellRender={{ current: dateCellRender, month: monthCellRender }}
+            headerRender={(props) => <CalendarHeader {...props} selectedDate={selectedDate} onClearDate={handleClearDate} />}
+          />
+        </div>
         <Text type="secondary" style={{ fontSize: 11, display: 'block', textAlign: 'center', marginTop: 4 }}>无具体日期的任务不在日历视图中</Text>
       </div>
 
-      {/* 选中日期的任务 */}
+      {/* 任务列表 */}
       <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 12px' : '16px 24px' }}>
-        {effectiveSelectedDate ? (
+        {dateRange ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Title level={5} style={{ margin: 0 }}>
+                {dateRange.start} ~ {dateRange.end}
+              </Title>
+              <Text style={{ color: 'var(--fg-muted)', fontSize: 13 }}>
+                {rangeTasks ? rangeTasks.reduce((s, [, tasks]) => s + tasks.length, 0) : 0} 个任务
+              </Text>
+            </div>
+            {rangeTasks && rangeTasks.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {rangeTasks.map(([date, tasks]) => (
+                  <div key={date}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <Text strong style={{ fontSize: 14, color: 'var(--fg-primary)' }}>
+                        {dayjs(date).format('M月D日')}
+                      </Text>
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>{tasks.length} 项</span>
+                      {date === dayjs().format('YYYY-MM-DD') && <Tag color="blue">今天</Tag>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {tasks.map(taskCard)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--fg-muted)' }}>该日期范围内没有任务</div>
+            )}
+          </>
+        ) : (
           <>
             <Title level={5} style={{ marginBottom: 16 }}>
               {dayjs(effectiveSelectedDate).format('YYYY年M月D日')} 的任务
@@ -149,30 +255,10 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
               <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--fg-muted)' }}>当天没有任务</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {selectedDateTasks.map((task) => {
-                  function handleMouseEnter(e) { e.currentTarget.style.borderColor = 'var(--accent)'; }
-                  function handleMouseLeave(e) { e.currentTarget.style.borderColor = 'var(--border)'; }
-                  function handleClick() { onAddItem(task); }
-                  return (
-                    <div key={task.id} onClick={handleClick} style={{
-                      padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                      background: task.completed ? 'transparent' : 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      transition: 'all 0.2s',
-                      opacity: task.completed ? 0.6 : 1,
-                    }} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ flex: 1, textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? 'var(--fg-muted)' : 'var(--fg)' }}>{task.title}</span>
-                        {task.priority === 'important' && <StarFilled style={{ color: 'var(--important)', fontSize: 14 }} />}
-                      </div>
-                    </div>
-                  );
-                })}
+                {selectedDateTasks.map(taskCard)}
               </div>
             )}
           </>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--fg-muted)' }}>点击日历中的日期查看任务</div>
         )}
       </div>
     </div>

@@ -77,11 +77,12 @@ async function login(req, res) {
       return res.status(401).json({ success: false, message: '密码错误' });
     }
 
-    // 生成 JWT（7天有效期）
+    // 生成 JWT（APK 365天 / 浏览器 30天）
+    const expiresIn = req.headers['x-platform'] === 'capacitor' ? '365d' : '30d';
     const token = jwt.sign(
       { userId: user.id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn }
     );
 
     res.json({
@@ -312,11 +313,12 @@ async function emailAuth(req, res) {
       user = users[0];
     }
 
-    // 生成 JWT（7天有效期）
+    // 生成 JWT（APK 365天 / 浏览器 30天）
+    const expiresIn = req.headers['x-platform'] === 'capacitor' ? '365d' : '30d';
     const token = jwt.sign(
       { userId: user.id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn }
     );
 
     res.json({

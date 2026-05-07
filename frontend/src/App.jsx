@@ -8,7 +8,8 @@ import CardList from './components/CardList';
 import DetailPanel from './components/DetailPanel';
 import AddItemModal from './components/AddItemModal';
 import TrashView from './components/TrashView';
-import CalendarView from './components/CalendarView';
+import CalendarView, { QUICK_RANGES } from './components/CalendarView';
+import dayjs from 'dayjs';
 import { toast } from './components/Toast';
 import { api, Storage, isTokenExpired } from './api';
 import './styles/global.css';
@@ -48,13 +49,17 @@ export default function App() {
   const [batchSelectedIds, setBatchSelectedIds] = useState([]);
   const [showCompleted, setShowCompleted] = useState(() => localStorage.getItem('show_completed') === 'true');
   const [sortCompletedLast, setSortCompletedLast] = useState(() => localStorage.getItem('sort_completed_last') === 'true');
-  const [showShelved, setShowShelved] = useState(() => localStorage.getItem('show_shelved') === 'true');
+  const [showShelved, setShowShelved] = useState(() => {
+    const v = localStorage.getItem('show_shelved');
+    return v === null ? true : v === 'true';
+  });
   const [privacyMode, setPrivacyMode] = useState(() => localStorage.getItem('privacy_mode') === 'true');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [trashHighlightId, setTrashHighlightId] = useState(null);
   const [quickNote, setQuickNote] = useState('');
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(null);
+  const [calendarDateRange, setCalendarDateRange] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { md } = Grid.useBreakpoint();
   const isMobile = !md;
@@ -581,6 +586,61 @@ export default function App() {
                   {batchMode ? '取消' : '批量解除'}
                 </Button>
               )}
+              {isMobile && currentView === 'calendar' && (
+                <Popover
+                  trigger="click"
+                  placement="bottom"
+                  align={{ offset: [0, 4] }}
+                  content={
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 160, padding: '4px 0' }}>
+                      <Typography.Text style={{ fontSize: 13, fontWeight: 500 }}>快捷日期范围</Typography.Text>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {QUICK_RANGES.map((r) => (
+                          <Button key={r.days} size="small"
+                            type={calendarDateRange?.end === dayjs().add(r.days, 'day').format('YYYY-MM-DD') ? 'primary' : 'default'}
+                            onClick={() => {
+                              const start = dayjs().format('YYYY-MM-DD');
+                              const end = dayjs().add(r.days, 'day').format('YYYY-MM-DD');
+                              setCalendarDateRange({ start, end });
+                            }}
+                          >{r.label}</Button>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <Input type="number" min={1} max={365} size="small"
+                          placeholder="请输入"
+                          style={{ width: 110 }}
+                          onPressEnter={(e) => {
+                            const days = parseInt(e.target.value);
+                            if (days > 0) {
+                              const start = dayjs().format('YYYY-MM-DD');
+                              const end = dayjs().add(days, 'day').format('YYYY-MM-DD');
+                              setCalendarDateRange({ start, end });
+                            }
+                          }}
+                          suffix={<Typography.Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>天</Typography.Text>}
+                        />
+                        <Button size="small" type="primary"
+                          onClick={(e) => {
+                            const input = e.currentTarget.parentElement.querySelector('input');
+                            const days = parseInt(input?.value);
+                            if (days > 0) {
+                              const start = dayjs().format('YYYY-MM-DD');
+                              const end = dayjs().add(days, 'day').format('YYYY-MM-DD');
+                              setCalendarDateRange({ start, end });
+                            }
+                          }}
+                        >确认</Button>
+                      </div>
+                      {calendarDateRange && <Button size="small" onClick={() => setCalendarDateRange(null)}>清除范围</Button>}
+                    </div>
+                  }
+                >
+                  <Button size="small" type={calendarDateRange ? 'primary' : 'default'}>
+                    日期范围{calendarDateRange ? '·已选' : ''}
+                  </Button>
+                </Popover>
+              )}
               {currentView !== 'notes' && currentView !== 'expired' && currentView !== 'trash' && (
                 <Button type="primary" size="small" onClick={() => setShowAddModal(true)}>+ 新建</Button>
               )}
@@ -606,6 +666,8 @@ export default function App() {
           <CalendarView
             items={visibleItems}
             selectedDate={calendarSelectedDate}
+            dateRange={calendarDateRange}
+            onSetDateRange={setCalendarDateRange}
             onSelectDate={setCalendarSelectedDate}
             onAddItem={(item) => {
               if (isMobile) {
