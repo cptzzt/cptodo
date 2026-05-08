@@ -20,7 +20,7 @@ function nextDayOfWeek(day) {
   const d = new Date();
   const current = d.getDay();
   let diff = day - current;
-  if (diff <= 0) diff += 7;
+  if (diff < 0) diff += 7;
   d.setDate(d.getDate() + diff);
   return toDateStr(d);
 }
@@ -169,19 +169,23 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
             </Select>
           </Form.Item>
         )}
-        {showWeekDay && (
-          <Form.Item label="重复日">
-            <Select value={weekDay} onChange={setWeekDay}>
-              <Select.Option value="1">周一</Select.Option>
-              <Select.Option value="2">周二</Select.Option>
-              <Select.Option value="3">周三</Select.Option>
-              <Select.Option value="4">周四</Select.Option>
-              <Select.Option value="5">周五</Select.Option>
-              <Select.Option value="6">周六</Select.Option>
-              <Select.Option value="0">周日</Select.Option>
-            </Select>
-          </Form.Item>
-        )}
+        {showWeekDay && (() => {
+          const todayDay = new Date().getDay();
+          return (
+            <Form.Item label="重复日期">
+              <Select value={weekDay} onChange={setWeekDay}>
+                <Select.Option value="1">周一{todayDay === 1 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="2">周二{todayDay === 2 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="3">周三{todayDay === 3 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="4">周四{todayDay === 4 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="5">周五{todayDay === 5 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="6">周六{todayDay === 6 ? '（今天）' : ''}</Select.Option>
+                <Select.Option value="0">周日{todayDay === 0 ? '（今天）' : ''}</Select.Option>
+              </Select>
+              <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 4 }}>选择本周已过的日子则从下周开始</div>
+            </Form.Item>
+          );
+        })()}
         {showProject && (
           <Form.Item label="项目">
             <Select value={projectId || undefined} onChange={setProjectId} allowClear placeholder="无项目">

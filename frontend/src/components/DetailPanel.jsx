@@ -103,15 +103,19 @@ export default function DetailPanel({
   function handleSave() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    const data = { title: trimmedTitle, notes: notes.trim(), priority, is_private: isPrivate ? 1 : 0, shelved: shelved ? 1 : 0 };
-    if (isNote && convertToTask) {
-      const hasDueDate = !!dueDate;
+    // 任务（含随笔转任务）保存时，截止日期、所属项目、标签不能同时为空
+    const willBeTask = !isNote || convertToTask;
+    if (willBeTask && !isRecurring) {
+      const hasDueDate = !!(isNote && convertToTask ? dueDate : dueDate);
       const hasProject = !!projectId;
       const hasTags = pendingTags.length > 0;
       if (!hasDueDate && !hasProject && !hasTags) {
         message.warning('请至少填写截止日期、所属项目或标签其中一项');
         return;
       }
+    }
+    const data = { title: trimmedTitle, notes: notes.trim(), priority, is_private: isPrivate ? 1 : 0, shelved: shelved ? 1 : 0 };
+    if (isNote && convertToTask) {
       data.type = 'task';
       data.due_date = dueDate || null;
       if (projectId) data.project_id = projectId;
@@ -295,8 +299,8 @@ export default function DetailPanel({
         );
       })()}
 
-      {/* 已完成（仅任务） */}
-      {!isNote && (
+      {/* 已完成（仅普通任务和单次重复任务） */}
+      {!isNote && !(isRecurring && displayItem.recurring_target > 1) && (
         <div style={{ marginBottom: 16 }}>
           <Checkbox checked={completed} onChange={(e) => setCompleted(e.target.checked)}>
             标记为已完成

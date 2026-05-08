@@ -211,7 +211,7 @@ export default function CardList({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--fg-muted)' }}>
                 {proj && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><FolderOutlined style={{ fontSize: 11 }} /> {proj.name}</span>}
-                {item.due_date && !isNote && (
+                {item.due_date && !isNote && !(item.recurring && item.recurring_target > 1) && (
                   <span style={{ color: overdue ? 'var(--overdue)' : 'var(--fg-muted)', fontWeight: overdue ? 500 : 400 }}>
                     {formatDate(item.due_date)}
                   </span>

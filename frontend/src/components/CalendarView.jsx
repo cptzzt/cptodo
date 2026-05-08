@@ -194,7 +194,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
             ))}
             <RangePicker size="small" onChange={handleCustomRange}
               value={dateRange ? [dayjs(dateRange.start), dayjs(dateRange.end)] : null}
-              style={{ width: 220 }} placeholder={['开始日期', '结束日期']} />
+              style={{ width: 230 }} placeholder={['开始日期', '结束日期']} />
             {dateRange && <Button size="small" onClick={handleClearRange}>清除范围</Button>}
           </div>
         )}

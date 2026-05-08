@@ -137,7 +137,10 @@ export default function App() {
           if (isToday(i.due_date)) return false;
           return isThisWeek(i.due_date) || (i.recurring && !i.due_date);
         });
-        if (!showCompleted) items = items.filter((i) => !i.completed); break;
+        if (!showCompleted) items = items.filter((i) => {
+          if (i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target) return false;
+          return !i.completed;
+        }); break;
       case 'recurring':
         items = allItems.filter((i) => i.recurring);
         break;
