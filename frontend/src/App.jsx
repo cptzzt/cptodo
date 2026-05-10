@@ -365,6 +365,23 @@ export default function App() {
   async function handleBatchUnlinkTag() {
     if (!checkAuth()) return;
     if (batchSelectedIds.length === 0 || !currentTagId) return;
+    // 检查解绑后是否会变成幽灵任务（无截止日期、无项目、无其他标签）
+    const blocked = batchSelectedIds.map((id) => {
+      const item = allItems.find((i) => i.id === id);
+      if (!item || item.type === 'note') return null;
+      const hasDueDate = !!item.due_date;
+      const hasProject = !!item.project_id;
+      const otherTags = (item.tags || []).filter((t) => t.id !== currentTagId);
+      if (!hasDueDate && !hasProject && otherTags.length === 0) {
+        return item.title;
+      }
+      return null;
+    }).filter(Boolean);
+    if (blocked.length > 0) {
+      const names = blocked.length <= 3 ? blocked.map((n) => `「${n}」`).join('、') : blocked.slice(0, 3).map((n) => `「${n}」`).join('、') + `等${blocked.length}个任务`;
+      message.warning(`${names} 解绑后将无截止日期、项目和标签，请至少填写一项信息`);
+      return;
+    }
     try {
       await Promise.all(batchSelectedIds.map((id) => api.removeItemTag(id, currentTagId)));
       toast.success(`已解除 ${batchSelectedIds.length} 条关联`);
