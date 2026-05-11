@@ -1,6 +1,6 @@
 const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:3000/api'
-  : 'http://124.220.19.21/api';
+  : 'https://cptodo.top/api';
 
 const KEYS = {
   TOKEN: 'todo_token',

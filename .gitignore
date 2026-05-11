@@ -3,6 +3,10 @@ dist/
 .vite
 .env
 
+# Android 签名密钥和密码
+frontend/android/keystore.properties
+frontend/android/app/cptodo-release-key.jks
+
 # Claude Code 本地配置
 .claude/
 
