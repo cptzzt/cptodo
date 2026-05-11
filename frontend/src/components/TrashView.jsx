@@ -186,7 +186,11 @@ export default function TrashView({ onClose, onRefresh, highlightId }) {
                 <span style={{ fontSize: 16 }}>{typeIcon(item.type)}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500 }}>{item.title || item.name}</div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>{typeLabel(item.type)}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {typeLabel(item.type)}
+                    {item.type === 'task' && ` · ${item.completed ? '已完成' : '未完成'}`}
+                    {item.project_name ? ` · ${item.project_name}` : ''}
+                  </Text>
                 </div>
               </div>
             );

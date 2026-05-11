@@ -33,6 +33,7 @@ export default function DetailPanel({
   const [projectLabelId, setProjectLabelId] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [shelved, setShelved] = useState(false);
+  const [showEarly, setShowEarly] = useState(false);
   const [recurringCount, setRecurringCount] = useState(0);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function DetailPanel({
     setProjectLabelId(item.project_label_id || '');
     setIsPrivate(!!item.is_private);
     setShelved(!!item.shelved);
+    setShowEarly(!!item.show_early);
     setRecurringCount(item.recurring_count || 0);
     setOpen(true);
     closingRef.current = false;
@@ -114,7 +116,7 @@ export default function DetailPanel({
         return;
       }
     }
-    const data = { title: trimmedTitle, notes: notes.trim(), priority, is_private: isPrivate ? 1 : 0, shelved: shelved ? 1 : 0 };
+    const data = { title: trimmedTitle, notes: notes.trim(), priority, is_private: isPrivate ? 1 : 0, shelved: shelved ? 1 : 0, show_early: showEarly ? 1 : 0 };
     if (isNote && convertToTask) {
       data.type = 'task';
       data.due_date = dueDate || null;
@@ -313,7 +315,7 @@ export default function DetailPanel({
         </div>
       )}
 
-      {/* 隐私 & 搁置 */}
+      {/* 隐私 & 搁置 & 提前显示 */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 16 }}>
         <Checkbox checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)}>
           Private
@@ -321,7 +323,17 @@ export default function DetailPanel({
         <Checkbox checked={shelved} onChange={(e) => setShelved(e.target.checked)}>
           暂时搁置
         </Checkbox>
+        {!isNote && dueDate && !isRecurring && (
+          <Checkbox checked={showEarly} onChange={(e) => setShowEarly(e.target.checked)}>
+            尽早完成
+          </Checkbox>
+        )}
       </div>
+      {showEarly && dueDate && (
+        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: -12, marginBottom: 16 }}>
+          选择尽早完成则未完成时在截止日期前每天都会显示
+        </Text>
+      )}
 
       {/* 标签 */}
       <div style={{ marginBottom: 16 }}>

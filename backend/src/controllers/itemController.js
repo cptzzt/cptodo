@@ -85,7 +85,7 @@ async function getItems(req, res) {
 
     let sql = `
       SELECT i.id, i.user_id, i.project_id, i.project_label_id, i.parent_id, i.type, i.title,
-        i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring, i.recurring_target, i.recurring_count, i.is_private, i.shelved,
+        i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring, i.recurring_target, i.recurring_count, i.is_private, i.shelved, i.show_early,
         i.sort_order, i.created_at, i.updated_at
       FROM items i`;
 
@@ -200,7 +200,7 @@ async function getItems(req, res) {
 async function createItem(req, res) {
   try {
     const userId = req.user.userId;
-    const { project_id, project_label_id, parent_id, type, title, content, notes, due_date, priority, recurring, recurring_target, tag_ids, is_private } = req.body;
+    const { project_id, project_label_id, parent_id, type, title, content, notes, due_date, priority, recurring, recurring_target, tag_ids, is_private, show_early } = req.body;
 
     if (!type || !['note', 'folder', 'task'].includes(type)) {
       return res.status(400).json({ success: false, message: '类型必须为 note、folder 或 task' });
@@ -257,8 +257,8 @@ async function createItem(req, res) {
     const itemPriority = priority || 'normal';
     const targetValue = recurring ? (recurring_target || 1) : 1;
 
-    const insertSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`;
+    const insertSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, show_early)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`;
     const insertParams = [
       userId,
       project_id || null,
@@ -276,11 +276,12 @@ async function createItem(req, res) {
       type === 'task' ? (recurring || null) : null,
       targetValue,
       0,
-      is_private ? 1 : 0
+      is_private ? 1 : 0,
+      show_early ? 1 : 0
     ];
     // 使用 pool.escape 处理参数，避免 mysql2 参数绑定问题
     const e = (v) => v === null || v === undefined ? 'NULL' : pool.escape(v);
-    const directSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private) VALUES (${userId}, ${e(project_id || null)}, ${e(project_label_id || null)}, ${e(parent_id || null)}, ${e(type)}, ${e(title.trim())}, ${e(type === 'task' ? (content ? content.trim() : null) : null)}, ${e(notes ? notes.trim() : null)}, ${e(recurring === 'weekly' && targetValue > 1 ? null : (type === 'task' ? (due_date || null) : null))}, 0, ${e(itemPriority)}, ${e(type === 'task' ? (recurring || null) : null)}, ${e(targetValue)}, 0, ${e(is_private ? 1 : 0)})`;
+    const directSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, show_early) VALUES (${userId}, ${e(project_id || null)}, ${e(project_label_id || null)}, ${e(parent_id || null)}, ${e(type)}, ${e(title.trim())}, ${e(type === 'task' ? (content ? content.trim() : null) : null)}, ${e(notes ? notes.trim() : null)}, ${e(recurring === 'weekly' && targetValue > 1 ? null : (type === 'task' ? (due_date || null) : null))}, 0, ${e(itemPriority)}, ${e(type === 'task' ? (recurring || null) : null)}, ${e(targetValue)}, 0, ${e(is_private ? 1 : 0)}, ${e(show_early ? 1 : 0)})`;
     const [result] = await pool.query(directSql);
 
     // target>1 时用 SQL 计算本周一作为 due_date
@@ -299,7 +300,7 @@ async function createItem(req, res) {
     }
 
     const [newItems] = await pool.execute(
-      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, sort_order, created_at, updated_at
+      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, show_early, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [insertId]
     );
@@ -319,7 +320,7 @@ async function updateItem(req, res) {
   try {
     const userId = req.user.userId;
     const itemId = req.params.id;
-    const { title, content, notes, due_date, completed, parent_id, project_id, project_label_id, priority, recurring, recurring_target, recurring_count, sort_order, type, is_private, shelved } = req.body;
+    const { title, content, notes, due_date, completed, parent_id, project_id, project_label_id, priority, recurring, recurring_target, recurring_count, sort_order, type, is_private, shelved, show_early } = req.body;
 
     // 查询当前项
     const [items] = await pool.execute(
@@ -433,6 +434,11 @@ async function updateItem(req, res) {
       values.push(shelved ? 1 : 0);
     }
 
+    if (show_early !== undefined) {
+      updates.push('show_early = ?');
+      values.push(show_early ? 1 : 0);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ success: false, message: '没有需要更新的字段' });
     }
@@ -444,7 +450,7 @@ async function updateItem(req, res) {
     );
 
     const [updated] = await pool.execute(
-      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, sort_order, created_at, updated_at
+      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, show_early, sort_order, created_at, updated_at
        FROM items WHERE id = ?`,
       [itemId]
     );

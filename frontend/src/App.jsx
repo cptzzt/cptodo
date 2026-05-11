@@ -90,6 +90,13 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // 切回标签页时刷新数据
+  useEffect(() => {
+    const handleVisibility = () => { if (!document.hidden) loadData(); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [loadData]);
+
   // 定时检查 token 是否过期，过期立即跳转
   useEffect(() => {
     const check = () => { if (isTokenExpired()) { Storage.clear(); toast.warning('登录信息已过期，请重新登录'); navigate('/login', { replace: true }); } };
@@ -128,7 +135,14 @@ export default function App() {
     switch (currentView) {
       case 'notes': items = allItems.filter((i) => i.type === 'note' && !i.project_id); break;
       case 'today':
-        items = allItems.filter((i) => i.type === 'task' && !((i.recurring && i.recurring_target > 1)) && (isToday(i.due_date) || (i.recurring && !i.due_date)));
+        items = allItems.filter((i) => {
+          if (i.type !== 'task') return false;
+          if (i.recurring && i.recurring_target > 1) return false;
+          if (isToday(i.due_date)) return true;
+          if (i.recurring && !i.due_date) return true;
+          if (i.show_early && i.due_date && toDateStr(i.due_date) > toDateStr(new Date())) return true;
+          return false;
+        });
         if (!showCompleted) items = items.filter((i) => !i.completed); break;
       case 'week':
         items = allItems.filter((i) => {
@@ -186,6 +200,12 @@ export default function App() {
       }
       const ai = a.priority === 'important' ? 0 : 1, bi = b.priority === 'important' ? 0 : 1;
       if (ai !== bi) return ai - bi;
+      // 今天视图下，提前显示但未到截止日的任务排到最后
+      if (currentView === 'today') {
+        const aEarly = a.show_early && !isToday(a.due_date) ? 1 : 0;
+        const bEarly = b.show_early && !isToday(b.due_date) ? 1 : 0;
+        if (aEarly !== bEarly) return aEarly - bEarly;
+      }
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
       if (a.due_date) return -1; if (b.due_date) return 1;
       return new Date(b.created_at) - new Date(a.created_at);
@@ -294,7 +314,7 @@ export default function App() {
 
   async function handleAddProject(name, isPrivate) {
     if (!checkAuth()) return;
-    try { await api.createProject({ name, is_private: isPrivate ? 1 : 0 }); toast.success('项目创建成功'); loadData(); } catch (e) { toast.error(e.message); }
+    try { const res = await api.createProject({ name, is_private: isPrivate ? 1 : 0 }); toast.success('项目创建成功'); await loadData(); setCurrentView('project-' + res.data.id); } catch (e) { toast.error(e.message); }
   }
 
   async function handleEditProject(id, name, isPrivate) {
@@ -318,7 +338,7 @@ export default function App() {
 
   async function handleAddTag(name, color, isPrivate) {
     if (!checkAuth()) return;
-    try { await api.createTag({ name, color, is_private: isPrivate ? 1 : 0 }); toast.success('标签创建成功'); loadData(); } catch (e) { toast.error(e.message); }
+    try { const res = await api.createTag({ name, color, is_private: isPrivate ? 1 : 0 }); toast.success('标签创建成功'); await loadData(); setCurrentView('tag-' + res.data.id); } catch (e) { toast.error(e.message); }
   }
 
   async function handleEditTag(id, name, color, isPrivate) {

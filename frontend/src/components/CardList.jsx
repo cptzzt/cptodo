@@ -8,6 +8,13 @@ const { Text } = Typography;
 
 const RECURRING_LABELS = { daily: '每天', weekly: '每周' };
 
+function isToday(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T00:00:00');
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
 const EMPTY_MESSAGES = {
   notes: '还没有随笔，在上方输入框快速记录',
   today: '今天没有到期任务',
@@ -215,6 +222,9 @@ export default function CardList({
                   <span style={{ color: overdue ? 'var(--overdue)' : 'var(--fg-muted)', fontWeight: overdue ? 500 : 400 }}>
                     {formatDate(item.due_date)}
                   </span>
+                )}
+                {!!item.show_early && item.due_date && !isToday(item.due_date) && currentView === 'today' && (
+                  <span style={{ color: 'var(--accent)', fontSize: 11 }}>尽早完成</span>
                 )}
                 {item.recurring && completed && isRecurringView && (
                   <span style={{ color: 'var(--complete)', fontWeight: 500, fontSize: 12 }}>
