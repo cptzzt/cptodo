@@ -3,6 +3,9 @@ dist/
 .vite
 .env
 
+# APK文件
+frontend/android/app/release/app-release.zip
+
 # Android 签名密钥和密码
 frontend/android/keystore.properties
 frontend/android/app/cptodo-release-key.jks

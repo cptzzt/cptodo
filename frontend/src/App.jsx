@@ -97,6 +97,16 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [loadData]);
 
+  // 跨天自动刷新数据（每分钟检查日期是否变化）
+  useEffect(() => {
+    let lastDate = new Date().toDateString();
+    const timer = setInterval(() => {
+      const currentDate = new Date().toDateString();
+      if (currentDate !== lastDate) { lastDate = currentDate; loadData(); }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [loadData]);
+
   // 定时检查 token 是否过期，过期立即跳转
   useEffect(() => {
     const check = () => { if (isTokenExpired()) { Storage.clear(); toast.warning('登录信息已过期，请重新登录'); navigate('/login', { replace: true }); } };
@@ -137,17 +147,20 @@ export default function App() {
       case 'today':
         items = allItems.filter((i) => {
           if (i.type !== 'task') return false;
-          if (i.recurring && i.recurring_target > 1) return false;
+          if (i.recurring === 'weekly' && i.recurring_target > 1) return false;
           if (isToday(i.due_date)) return true;
           if (i.recurring && !i.due_date) return true;
           if (i.show_early && i.due_date && toDateStr(i.due_date) > toDateStr(new Date())) return true;
           return false;
         });
-        if (!showCompleted) items = items.filter((i) => !i.completed); break;
+        if (!showCompleted) items = items.filter((i) => {
+          if (i.recurring === 'daily' && i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target) return false;
+          return !i.completed;
+        }); break;
       case 'week':
         items = allItems.filter((i) => {
           if (i.type !== 'task') return false;
-          if (i.recurring && i.recurring_target > 1) return true;
+          if (i.recurring === 'weekly' && i.recurring_target > 1) return true;
           if (isToday(i.due_date)) return false;
           return isThisWeek(i.due_date) || (i.recurring && !i.due_date);
         });
@@ -237,7 +250,13 @@ export default function App() {
     : allItems;
 
   const badges = {
-    today: visibleItems.filter((i) => i.type === 'task' && !i.completed && !((i.recurring && i.recurring_target > 1)) && (isToday(i.due_date) || (i.recurring && !i.due_date))).length,
+    today: visibleItems.filter((i) => {
+      if (i.type !== 'task') return false;
+      if (i.recurring === 'weekly' && i.recurring_target > 1) return false;
+      if (i.recurring === 'daily' && i.recurring_target > 1) return (i.recurring_count || 0) < i.recurring_target;
+      if (i.completed) return false;
+      return isToday(i.due_date) || (i.recurring && !i.due_date);
+    }).length,
     week: visibleItems.filter((i) => {
       if (i.type !== 'task' || i.completed) return false;
       if (i.recurring && i.recurring_target > 1) return (i.recurring_count || 0) < i.recurring_target;
@@ -275,7 +294,8 @@ export default function App() {
     const item = allItems.find((i) => i.id === id);
     if (item && item.recurring && item.recurring_target > 1) {
       const newCount = Math.min((item.recurring_count || 0) + 1, item.recurring_target);
-      try { await api.updateItem(id, { recurring_count: newCount }); toast.success(newCount >= item.recurring_target ? '本周目标已达成' : `已完成 ${newCount}/${item.recurring_target}`); loadData(); }
+      const doneMsg = item.recurring === 'daily' ? '今天目标已达成' : '本周目标已达成';
+      try { await api.updateItem(id, { recurring_count: newCount }); toast.success(newCount >= item.recurring_target ? doneMsg : `已完成 ${newCount}/${item.recurring_target}`); loadData(); }
       catch (e) { toast.error(e.message); }
     } else {
       try { await api.updateItem(id, { completed: checked }); toast.success(checked ? '任务已完成' : '已取消完成'); loadData(); }

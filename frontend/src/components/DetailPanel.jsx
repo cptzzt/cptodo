@@ -259,7 +259,7 @@ export default function DetailPanel({
       {/* 频次目标进度 */}
       {isRecurring && displayItem.recurring_target > 1 && (
         <div style={{ marginBottom: 16 }}>
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>每周目标</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>{displayItem.recurring === 'daily' ? '每天目标' : '每周目标'}</Text>
           <div style={{ fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Button size="small" onClick={() => setRecurringCount(Math.max(0, recurringCount - 1))}

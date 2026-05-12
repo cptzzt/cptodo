@@ -72,6 +72,18 @@ async function cleanupExpiredRecurring(userId) {
      AND due_date < DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)`,
     [userId]
   );
+
+  // 重置 daily target>1 频次目标任务的计数（日边界）
+  // due_date 存的是昨天或更早，说明跨天了需要重置
+  await pool.execute(
+    `UPDATE items
+     SET recurring_count = 0,
+         due_date = CURDATE()
+     WHERE user_id = ? AND recurring = 'daily' AND recurring_target > 1
+     AND deleted_at IS NULL
+     AND due_date < CURDATE()`,
+    [userId]
+  );
 }
 
 // 获取列表（支持多种筛选）
@@ -243,9 +255,6 @@ async function createItem(req, res) {
     if (recurring && recurring_target !== undefined) {
       if (!Number.isInteger(recurring_target) || recurring_target < 1) {
         return res.status(400).json({ success: false, message: '频次目标必须为正整数' });
-      }
-      if (recurring_target > 1 && recurring === 'daily') {
-        return res.status(400).json({ success: false, message: '每天重复不支持频次目标大于 1' });
       }
     }
 

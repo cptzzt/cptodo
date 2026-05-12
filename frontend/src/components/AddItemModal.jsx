@@ -63,7 +63,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
   const showRecurring = isRecurringView;
   const showDueDate = isTask && !isRecurringView && !isTodayView;
   const showWeekDay = isRecurringView && recurring === 'weekly' && recurringTarget === 1;
-  const showRecurringTarget = isRecurringView && recurring === 'weekly';
+  const showRecurringTarget = isRecurringView;
   const showProject = isTask && !isRecurringView;
   const showContent = isTask;
 
@@ -78,7 +78,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
         data.recurring = recurring || 'daily';
         data.recurring_target = recurringTarget;
         if (data.recurring === 'daily') data.due_date = today();
-        else if (recurringTarget > 1) data.due_date = weekStart();
+        else if (data.recurring === 'weekly' && recurringTarget > 1) data.due_date = weekStart();
         else data.due_date = nextDayOfWeek(parseInt(weekDay));
       } else if (isTodayView) {
         data.due_date = today();
@@ -150,16 +150,34 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
         )}
         {showRecurring && (
           <Form.Item label="重复">
-            <Select value={recurring} onChange={(v) => { setRecurring(v); if (v === 'daily') setRecurringTarget(1); }}>
+            <Select value={recurring} onChange={(v) => { setRecurring(v); }}>
               <Select.Option value="daily">每天</Select.Option>
               <Select.Option value="weekly">每周</Select.Option>
             </Select>
           </Form.Item>
         )}
         {showRecurringTarget && (
-          <Form.Item label="每周目标次数">
+          <Form.Item label={recurring === 'daily' ? '每天目标次数' : '每周目标次数'}>
             <Select value={recurringTarget} onChange={setRecurringTarget}>
-              <Select.Option value={1}>1 次（固定日期）</Select.Option>
+              {recurring === 'daily' ? (
+                <>
+                  <Select.Option value={1}>1 次</Select.Option>
+                  <Select.Option value={2}>2 次</Select.Option>
+                  <Select.Option value={3}>3 次</Select.Option>
+                  <Select.Option value={4}>4 次</Select.Option>
+                  <Select.Option value={5}>5 次</Select.Option>
+                </>
+              ) : (
+                <>
+                  <Select.Option value={1}>1 次（固定日期）</Select.Option>
+                  <Select.Option value={2}>2 次</Select.Option>
+                  <Select.Option value={3}>3 次</Select.Option>
+                  <Select.Option value={4}>4 次</Select.Option>
+                  <Select.Option value={5}>5 次</Select.Option>
+                  <Select.Option value={6}>6 次</Select.Option>
+                  <Select.Option value={7}>7 次</Select.Option>
+                </>
+              )}
               <Select.Option value={2}>2 次</Select.Option>
               <Select.Option value={3}>3 次</Select.Option>
               <Select.Option value={4}>4 次</Select.Option>
