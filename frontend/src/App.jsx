@@ -259,7 +259,7 @@ export default function App() {
     }).length,
     week: visibleItems.filter((i) => {
       if (i.type !== 'task' || i.completed) return false;
-      if (i.recurring && i.recurring_target > 1) return (i.recurring_count || 0) < i.recurring_target;
+      if (i.recurring === 'weekly' && i.recurring_target > 1) return (i.recurring_count || 0) < i.recurring_target;
       if (isToday(i.due_date)) return false;
       return isThisWeek(i.due_date) || (i.recurring && !i.due_date);
     }).length,
