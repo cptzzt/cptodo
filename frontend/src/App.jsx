@@ -200,12 +200,11 @@ export default function App() {
     if (!showShelved) {
       items = items.filter((i) => !i.shelved);
     }
-    function isDone(i) { return i.completed || (i.recurring && i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target); }
+    function isDone(i) { return !!(i.completed || (i.recurring && i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target)); }
     items.sort((a, b) => {
       if (sortCompletedLast && isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
       if (a.type === 'note' && b.type !== 'note') return 1;
       if (a.type !== 'note' && b.type === 'note') return -1;
-      // 项目视图下按项目专属标签分组
       if (currentView.startsWith('project-')) {
         const aLabel = a.project_label_id || 0;
         const bLabel = b.project_label_id || 0;
@@ -213,7 +212,6 @@ export default function App() {
       }
       const ai = a.priority === 'important' ? 0 : 1, bi = b.priority === 'important' ? 0 : 1;
       if (ai !== bi) return ai - bi;
-      // 今天视图下，提前显示但未到截止日的任务排到最后
       if (currentView === 'today') {
         const aEarly = a.show_early && !isToday(a.due_date) ? 1 : 0;
         const bEarly = b.show_early && !isToday(b.due_date) ? 1 : 0;
