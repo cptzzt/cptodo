@@ -1,6 +1,7 @@
-const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'http://localhost:3000/api'
-  : 'https://cptodo.top/api';
+const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
+const API_BASE = isCapacitor
+  ? 'https://cptodo.top/api'   // Capacitor 用完整 URL
+  : '/api';                     // Web 用相对路径，由 Nginx/Vite 代理转发
 
 const KEYS = {
   TOKEN: 'todo_token',
@@ -38,8 +39,6 @@ export const Storage = {
     localStorage.removeItem(KEYS.USER);
   }
 };
-
-const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor;
 
 async function request(url, options = {}) {
   const token = Storage.getToken();
