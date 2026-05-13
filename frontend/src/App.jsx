@@ -200,7 +200,7 @@ export default function App() {
     if (!showShelved) {
       items = items.filter((i) => !i.shelved);
     }
-    function isDone(i) { return i.completed || (i.recurring && i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target); }
+    function isDone(i) { return !!(i.completed || (i.recurring && i.recurring_target > 1 && (i.recurring_count || 0) >= i.recurring_target)); }
     items.sort((a, b) => {
       if (sortCompletedLast && isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
       if (a.type === 'note' && b.type !== 'note') return 1;
