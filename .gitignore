@@ -2,6 +2,7 @@ node_modules/
 dist/
 .vite
 .env
+docker-compose.override.yml
 
 # APK文件
 frontend/android/app/release/app-release.zip
