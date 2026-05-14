@@ -49,6 +49,7 @@ async function request(url, options = {}) {
       ...(isCapacitor ? { 'X-Platform': 'capacitor' } : {}),
       ...options.headers
     },
+    cache: 'no-store',
     ...options
   };
   const response = await fetch(`${API_BASE}${url}`, config);
