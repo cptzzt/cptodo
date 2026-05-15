@@ -15,11 +15,12 @@
 | 数据库 | MariaDB | 关系型数据库（MySQL 分支），用 DBeaver 管理 |
 | 服务器 | 腾讯云 Debian 4核4G | 公网 IP：124.220.19.21（旧：122.51.29.69 已停用） |
 | 域名 | cptodo.top | 已配置，未备案 |
-| 部署 | deploy-react.sh | pm2 管理后端进程 |
+| 移动端 | Capacitor | React 项目打包为 Android APK |
+| 部署 | Docker Compose | 三容器编排（nginx + backend + db），见 `feature/docker` 分支 |
 
 ## 项目阶段
 
-当前阶段：**功能开发基本完成，准备转前端框架**
+当前阶段：**Docker 容器化完成，项目准备收尾**
 
 完整阶段：
 
@@ -29,7 +30,10 @@
 4. ✅ **第四阶段** - 前端三栏布局
 5. ✅ **第五阶段** - 服务器部署
 6. ✅ **第六阶段** - 功能完善（项目+标签、回收站、批量删除、重复任务、已过期视图）
-7. 🔄 **下一阶段** - 原生 JS 转前端框架（详见下方"前端框架迁移计划"）
+7. ✅ **第七阶段** - React 框架迁移
+8. ✅ **第八阶段** - Capacitor Android 打包
+9. ✅ **第九阶段** - Docker 容器化（本地 + 服务器，支持 HTTPS）
+10. 🔄 **下一步** - 开新项目学 Java/Spring Boot
 
 ## 当前功能概览
 
@@ -40,24 +44,38 @@
 - **批量删除**：多选模式，重复任务不可批量删
 - **已过期**：展示上周及之前未完成的非重复任务
 - **数据库表结构**：见 `database/表结构说明.md`
+- **邮箱登录**：支持邮箱验证码登录/注册（阿里云邮件推送）
+- **主题切换**：forest-sage / warm-linen / lavender-mist / minimal-ink
+- **隐私模式**：项目/标签/条目可标记为私密
+- **项目标签**：每个项目可创建专属标签
+- **重复任务频率**：支持每天/每周 N 次的频率目标
+- **搁置/提前显示**：任务可暂时搁置或提前显示在"今天"视图
+- **Android APK**：通过 Capacitor 打包，可安装到安卓手机
 
-## 前端框架迁移计划
+## Docker 容器化
 
-### 背景
+已完成，详见 `流程手册/Docker容器化教程.md`。
 
-用户认为当前原生 JS + CSS 的界面样式像十年前的，不够好看、不够吸引人。希望通过转前端框架来改善 UI，同时学习前端框架的部署流程。
+### 容器架构
 
-### 决策
+三个容器由 docker-compose.yml 编排：
+- **nginx 容器**：托管前端静态文件 + 反向代理 /api/ → backend 容器
+- **backend 容器**：Node.js Express 后端
+- **db 容器**：MariaDB 数据库，数据持久化到 Docker Volume
 
-- **框架选择：React**（用户已会 Vue，通过对比 Vue 学习 React）
-- **分支策略：** main 分支冻结为原生 JS 版本，从 main 切 `feature/react-migration` 分支开发 React 版
-- **迁移范围：** 前端完全重写，后端后续按需改动（邮箱/手机号登录等）
-- **移动端适配、邮箱/手机号登录**均在 React 版中实现，原生版不再开发
-- **学习方式：** 逐步迁移，每步类比 Vue 讲解 React 区别
+### 本地 vs 服务器配置分离
 
-### 详细进度
+| 文件 | 用途 | 是否在 git |
+|------|------|-----------|
+| `docker-compose.yml` | 基础配置（不含端口和 SSL） | 是 |
+| `docker-compose.prod.yml` | 服务器专属（80+443, SSL 证书） | 是 |
+| `docker-compose.override.yml` | 本地专属（127.0.0.1:8888） | 否（gitignored） |
 
-见 `版本追踪.md`
+### 服务器更新命令
+
+```bash
+cd /root/cptodo && git pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
 ## 数据库工具
 
@@ -79,6 +97,8 @@
 | `database/06-soft-delete.sql` | 软删除（回收站） | ✅ | ❌ |
 
 线上同步状态详见 `部署同步记录.md`。
+
+**注意**：服务器已切换为 Docker 部署，SQL 迁移 07-14 已在 Docker 容器初始化时通过 `database/docker-init.sql` 执行。
 
 ## Git 提交规范
 
@@ -162,4 +182,4 @@
 - **深化** — 每个阶段结束后，延伸到真实工作场景的对比和思考
 - **扩展** — 以当前项目为基础，逐步引入 Docker、CI/CD、HTTPS、框架重写等进阶主题
 
-学习路线：手动部署（已完成）→ **前端框架迁移** → Docker 化 → CI/CD → 域名+HTTPS → 进阶后端（Java/Spring Boot 重写）
+学习路线：手动部署（已完成）→ 前端框架迁移（已完成）→ Docker 化（已完成）→ **开新项目学 Java/Spring Boot** → CI/CD → 域名+HTTPS
