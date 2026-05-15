@@ -25,7 +25,7 @@ async function cleanupAllUsers() {
       // 复用 itemController 的清理逻辑（直接 SQL，避免循环依赖）
       // 1. target=1 的过期重复任务：删旧建新
       const [expired] = await pool.execute(
-        `SELECT id, user_id, title, content, notes, priority, recurring, due_date
+        `SELECT id, user_id, title, content, notes, priority, recurring, due_date, original_created_at
          FROM items
          WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
          AND recurring_target = 1
@@ -56,10 +56,11 @@ async function cleanupAllUsers() {
         }
         if (!nextDateStr) continue;
 
+        const originalCreatedAt = task.original_created_at || null;
         const [nextResult] = await pool.execute(
-          `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring)
-           VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?)`,
-          [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring]
+          `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring, original_created_at)
+           VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?, ?)`,
+          [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring, originalCreatedAt]
         );
 
         const [tagRows] = await pool.execute(

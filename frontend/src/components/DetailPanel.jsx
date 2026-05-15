@@ -368,6 +368,11 @@ export default function DetailPanel({
         <Text style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'block', marginBottom: 4 }}>
           创建于 {new Date(displayItem.created_at).toLocaleString('zh-CN')}
         </Text>
+        {isRecurring && displayItem.original_created_at && (
+          <Text style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'block', marginBottom: 4 }}>
+            初始创建于 {new Date(displayItem.original_created_at).toLocaleString('zh-CN')}
+          </Text>
+        )}
         {displayItem.updated_at && displayItem.updated_at !== displayItem.created_at && (
           <Text style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'block' }}>
             更新于 {new Date(displayItem.updated_at).toLocaleString('zh-CN')}

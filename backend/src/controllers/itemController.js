@@ -7,7 +7,7 @@ const pool = require('../utils/db');
 async function cleanupExpiredRecurring(userId) {
   // 找出已过期的活跃重复任务（不含回收站内的）
   const [expired] = await pool.execute(
-    `SELECT id, user_id, title, content, notes, priority, recurring, due_date
+    `SELECT id, user_id, title, content, notes, priority, recurring, due_date, original_created_at
      FROM items
      WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
      AND recurring_target = 1
@@ -41,10 +41,11 @@ async function cleanupExpiredRecurring(userId) {
     if (!nextDateStr) continue;
 
     // 创建下一次任务
+    const originalCreatedAt = task.original_created_at || null;
     const [nextResult] = await pool.execute(
-      `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring)
-       VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?)`,
-      [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring]
+      `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring, original_created_at)
+       VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?, ?)`,
+      [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring, originalCreatedAt]
     );
 
     // 继承标签
@@ -98,7 +99,7 @@ async function getItems(req, res) {
     let sql = `
       SELECT i.id, i.user_id, i.project_id, i.project_label_id, i.parent_id, i.type, i.title,
         i.content, i.notes, i.due_date, i.completed, i.priority, i.recurring, i.recurring_target, i.recurring_count, i.is_private, i.shelved, i.show_early,
-        i.sort_order, i.created_at, i.updated_at
+        i.sort_order, i.created_at, i.updated_at, i.original_created_at
       FROM items i`;
 
     const conditions = ['i.user_id = ?', 'i.deleted_at IS NULL'];
