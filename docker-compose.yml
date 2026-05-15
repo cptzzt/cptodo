@@ -2,6 +2,8 @@ services:
   # 前端 + Nginx 反向代理
   nginx:
     build: ./frontend
+    environment:
+      - TZ=Asia/Shanghai
     depends_on:
       - backend
     restart: unless-stopped
@@ -10,6 +12,7 @@ services:
   backend:
     build: ./backend
     environment:
+      - TZ=Asia/Shanghai
       - DB_HOST=db
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -31,6 +34,7 @@ services:
   db:
     image: mariadb:10.11
     environment:
+      - TZ=Asia/Shanghai
       - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_NAME}
       - MYSQL_USER=${DB_USER}
