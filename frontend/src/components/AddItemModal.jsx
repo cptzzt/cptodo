@@ -178,12 +178,6 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
                   <Select.Option value={7}>7 次</Select.Option>
                 </>
               )}
-              <Select.Option value={2}>2 次</Select.Option>
-              <Select.Option value={3}>3 次</Select.Option>
-              <Select.Option value={4}>4 次</Select.Option>
-              <Select.Option value={5}>5 次</Select.Option>
-              <Select.Option value={6}>6 次</Select.Option>
-              <Select.Option value={7}>7 次</Select.Option>
             </Select>
           </Form.Item>
         )}
