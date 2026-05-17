@@ -761,6 +761,7 @@ export default function App() {
       <DetailPanel key={effectiveSelectedItem?.id || 'empty'} item={effectiveSelectedItem} projects={visibleProjects} allTags={visibleTags}
         onClose={() => {
           if (isMobile) {
+            setSelectedId(null);
             navigate(-1);
           } else {
             setSelectedId(null);
