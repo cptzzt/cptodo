@@ -33,7 +33,7 @@ async function cleanupExpiredRecurring(userId) {
       now.setHours(0, 0, 0, 0);
       const currentDay = now.getDay();
       let diff = targetDay - currentDay;
-      if (diff <= 0) diff += 7;
+      if (diff < 0) diff += 7;
       now.setDate(now.getDate() + diff);
       nextDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     }
