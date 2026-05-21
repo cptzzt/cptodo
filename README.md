@@ -1,2 +1,2 @@
-feature/capacitor-android分支是最新代码
+feature/capacitor-android分支是常规部署最新代码，feature/docker是docker容器化部署分支，实际上最新
 main是原生JS，已冻结
