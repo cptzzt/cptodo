@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Drawer, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
 import { StarFilled, StarOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import { getReminder, setReminder, removeReminder } from '../utils/reminder';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -35,6 +36,7 @@ export default function DetailPanel({
   const [shelved, setShelved] = useState(false);
   const [showEarly, setShowEarly] = useState(false);
   const [recurringCount, setRecurringCount] = useState(0);
+  const [reminderTime, setReminderTime] = useState(null);
 
   useEffect(() => {
     if (!item) {
@@ -68,6 +70,8 @@ export default function DetailPanel({
     setShelved(!!item.shelved);
     setShowEarly(!!item.show_early);
     setRecurringCount(item.recurring_count || 0);
+    const existing = getReminder(item.id);
+    setReminderTime(existing ? dayjs(existing.time) : null);
     setOpen(true);
     closingRef.current = false;
     closingItemRef.current = item;
@@ -229,6 +233,29 @@ export default function DetailPanel({
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>截止日期</Text>
           <DatePicker value={dueDate ? dayjs(dueDate) : null} onChange={(_, dateString) => setDueDate(dateString || '')}
             style={{ width: '100%' }} placeholder="选择截止日期" />
+        </div>
+      )}
+
+      {/* 提醒时间（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>提醒时间</Text>
+          <DatePicker
+            showTime={{ format: 'HH:mm', minuteStep: 5 }}
+            format="YYYY-MM-DD HH:mm"
+            value={reminderTime}
+            onChange={(val) => {
+              setReminderTime(val);
+              if (val) {
+                setReminder(displayItem.id, val.format('YYYY-MM-DD HH:mm'), displayItem.title);
+              } else {
+                removeReminder(displayItem.id);
+              }
+            }}
+            style={{ width: '100%' }}
+            placeholder="选择提醒时间"
+            allowClear
+          />
         </div>
       )}
 

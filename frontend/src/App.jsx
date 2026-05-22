@@ -12,6 +12,8 @@ import CalendarView, { QUICK_RANGES } from './components/CalendarView';
 import dayjs from 'dayjs';
 import { toast } from './components/Toast';
 import { api, Storage, isTokenExpired } from './api';
+import { requestPermission, showNotification } from './utils/notification';
+import { getDueReminders, markNotified, cleanupOldReminders } from './utils/reminder';
 import './styles/global.css';
 
 const { Content } = Layout;
@@ -113,6 +115,24 @@ export default function App() {
     const timer = setInterval(check, 60000);
     return () => clearInterval(timer);
   }, [navigate]);
+
+  // 请求浏览器通知权限
+  useEffect(() => { requestPermission(); }, []);
+
+  // 每 30 秒检查提醒
+  useEffect(() => {
+    const check = () => {
+      const due = getDueReminders();
+      due.forEach((r) => {
+        showNotification('任务提醒', r.title);
+        markNotified(r.id);
+      });
+      cleanupOldReminders();
+    };
+    check();
+    const timer = setInterval(check, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 拦截 Android 返回按钮事件
   useEffect(() => {
