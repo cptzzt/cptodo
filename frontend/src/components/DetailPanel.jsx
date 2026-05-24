@@ -350,7 +350,7 @@ export default function DetailPanel({
         <Checkbox checked={shelved} onChange={(e) => setShelved(e.target.checked)}>
           暂时搁置
         </Checkbox>
-        {!isNote && dueDate && !isRecurring && (
+        {!isNote && dueDate && !(isRecurring && displayItem.recurring_target > 1) && (
           <Checkbox checked={showEarly} onChange={(e) => setShowEarly(e.target.checked)}>
             尽早完成
           </Checkbox>
