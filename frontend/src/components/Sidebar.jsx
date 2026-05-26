@@ -112,6 +112,7 @@ export default function Sidebar({
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef(null);
+  const mobileLongPressRef = useRef(null);
 
   // 标签弹窗
   const [tagModalOpen, setTagModalOpen] = useState(false);
@@ -307,9 +308,9 @@ export default function Sidebar({
             <Tooltip title="搜索"><Button type="text" size="small" icon={<SearchOutlined />} onClick={() => { setSearchOpen(true); setSearchQuery(''); setSearchResults([]); }} style={{ color: 'var(--fg-muted)' }} /></Tooltip>
           )}
           {isMobile ? (
-            <Button type="text" size="small" icon={privacyMode ? null : <SettingOutlined />} onClick={openSettings} style={{ color: 'var(--fg-muted)', fontWeight: 700, fontSize: privacyMode ? 12 : undefined }}>{privacyMode ? 'PM' : null}</Button>
+            <Button type="text" size="small" icon={privacyMode ? null : <SettingOutlined />} onClick={openSettings} onTouchStart={() => { mobileLongPressRef.current = setTimeout(() => { setPrivacyMode(!privacyMode); }, 500); }} onTouchEnd={() => clearTimeout(mobileLongPressRef.current)} onTouchMove={() => clearTimeout(mobileLongPressRef.current)} style={{ color: 'var(--fg-muted)', fontWeight: 700, fontSize: privacyMode ? 12 : undefined }}>{privacyMode ? 'PM' : null}</Button>
           ) : (
-            <Tooltip title="设置"><Button type="text" size="small" icon={privacyMode ? null : <SettingOutlined />} onClick={openSettings} style={{ color: 'var(--fg-muted)', fontWeight: 700, fontSize: privacyMode ? 12 : undefined }}>{privacyMode ? 'PM' : null}</Button></Tooltip>
+            <Tooltip title="设置"><Button type="text" size="small" icon={privacyMode ? null : <SettingOutlined />} onClick={openSettings} onContextMenu={(e) => { e.preventDefault(); setPrivacyMode(!privacyMode); }} style={{ color: 'var(--fg-muted)', fontWeight: 700, fontSize: privacyMode ? 12 : undefined }}>{privacyMode ? 'PM' : null}</Button></Tooltip>
           )}
           <Dropdown menu={{ items: themeMenuItems, selectedKeys: [themeKey] }} trigger={['click']} onOpenChange={(open) => { if (open) setThemeTooltipOpen(false); }}>
             {isMobile ? (
