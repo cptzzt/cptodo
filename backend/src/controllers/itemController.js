@@ -291,7 +291,7 @@ async function createItem(req, res) {
     ];
     // 使用 pool.escape 处理参数，避免 mysql2 参数绑定问题
     const e = (v) => v === null || v === undefined ? 'NULL' : pool.escape(v);
-    const directSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, show_early) VALUES (${userId}, ${e(project_id || null)}, ${e(project_label_id || null)}, ${e(parent_id || null)}, ${e(type)}, ${e(title.trim())}, ${e(type === 'task' ? (content ? content.trim() : null) : null)}, ${e(notes ? notes.trim() : null)}, ${e(recurring === 'weekly' && targetValue > 1 ? null : (type === 'task' ? (due_date || null) : null))}, 0, ${e(itemPriority)}, ${e(type === 'task' ? (recurring || null) : null)}, ${e(targetValue)}, 0, ${e(is_private ? 1 : 0)}, ${e(show_early ? 1 : 0)})`;
+    const directSql = `INSERT INTO items (user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, show_early, original_created_at) VALUES (${userId}, ${e(project_id || null)}, ${e(project_label_id || null)}, ${e(parent_id || null)}, ${e(type)}, ${e(title.trim())}, ${e(type === 'task' ? (content ? content.trim() : null) : null)}, ${e(notes ? notes.trim() : null)}, ${e(recurring === 'weekly' && targetValue > 1 ? null : (type === 'task' ? (due_date || null) : null))}, 0, ${e(itemPriority)}, ${e(type === 'task' ? (recurring || null) : null)}, ${e(targetValue)}, 0, ${e(is_private ? 1 : 0)}, ${e(show_early ? 1 : 0)}, ${type === 'task' && recurring ? 'NOW()' : 'NULL'})`;
     const [result] = await pool.query(directSql);
 
     // target>1 时用 SQL 计算本周一作为 due_date
