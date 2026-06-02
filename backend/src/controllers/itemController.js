@@ -310,7 +310,7 @@ async function createItem(req, res) {
     }
 
     const [newItems] = await pool.execute(
-      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, show_early, sort_order, created_at, updated_at
+      `SELECT id, user_id, project_id, project_label_id, parent_id, type, title, content, notes, due_date, completed, priority, recurring, recurring_target, recurring_count, is_private, shelved, show_early, sort_order, created_at, updated_at, original_created_at
        FROM items WHERE id = ?`,
       [insertId]
     );
