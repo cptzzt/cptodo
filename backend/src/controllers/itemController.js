@@ -40,7 +40,17 @@ async function cleanupExpiredRecurring(userId) {
 
     if (!nextDateStr) continue;
 
-    // 创建下一次任务
+    // 先继承标签（删除旧任务后标签就没了）
+    const [tagRows] = await pool.execute(
+      'SELECT tag_id FROM item_tags WHERE item_id = ?',
+      [task.id]
+    );
+
+    // 先删除旧任务，通过 affectedRows 确保只有一个请求能删成功
+    const [deleteResult] = await pool.execute('DELETE FROM items WHERE id = ?', [task.id]);
+    if (deleteResult.affectedRows === 0) continue;
+
+    // 创建下一次任务（只有成功删除旧任务的请求才会走到这里）
     const originalCreatedAt = task.original_created_at || null;
     const [nextResult] = await pool.execute(
       `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring, original_created_at)
@@ -48,18 +58,11 @@ async function cleanupExpiredRecurring(userId) {
       [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring, originalCreatedAt]
     );
 
-    // 继承标签
-    const [tagRows] = await pool.execute(
-      'SELECT tag_id FROM item_tags WHERE item_id = ?',
-      [task.id]
-    );
+    // 继承标签到新任务
     if (tagRows.length > 0) {
       const tagValues = tagRows.map(r => `(${nextResult.insertId}, ${r.tag_id})`).join(',');
       await pool.execute(`INSERT INTO item_tags (item_id, tag_id) VALUES ${tagValues}`);
     }
-
-    // 彻底删除旧任务
-    await pool.execute('DELETE FROM items WHERE id = ?', [task.id]);
   }
 
   // 重置 target>1 频次目标任务的计数（周边界）
