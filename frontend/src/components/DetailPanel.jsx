@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Drawer, Input, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
+import { Drawer, Input, InputNumber, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
 import { StarFilled, StarOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { getReminder, setReminder, removeReminder } from '../utils/reminder';
@@ -37,6 +37,7 @@ export default function DetailPanel({
   const [showEarly, setShowEarly] = useState(false);
   const [recurringCount, setRecurringCount] = useState(0);
   const [reminderTime, setReminderTime] = useState(null);
+  const [reminderMinutes, setReminderMinutes] = useState(null);
 
   useEffect(() => {
     if (!item) {
@@ -71,7 +72,15 @@ export default function DetailPanel({
     setShowEarly(!!item.show_early);
     setRecurringCount(item.recurring_count || 0);
     const existing = getReminder(item.id);
-    setReminderTime(existing ? dayjs(existing.time) : null);
+    if (existing) {
+      const t = dayjs(existing.time);
+      setReminderTime(t);
+      const diff = t.diff(dayjs(), 'minute');
+      setReminderMinutes(diff > 0 ? diff : null);
+    } else {
+      setReminderTime(null);
+      setReminderMinutes(null);
+    }
     setOpen(true);
     closingRef.current = false;
     closingItemRef.current = item;
@@ -239,23 +248,44 @@ export default function DetailPanel({
       {/* 提醒时间（仅任务） */}
       {!isNote && (
         <div style={{ marginBottom: 16 }}>
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>提醒时间</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>提醒时间 <Text type="secondary" style={{ fontSize: 11, color: '#999' }}>（切换即生效，仅保存在本地浏览器）</Text></Text>
           <DatePicker
-            showTime={{ format: 'HH:mm', minuteStep: 5 }}
+            showTime={{ format: 'HH:mm', minuteStep: 1 }}
             format="YYYY-MM-DD HH:mm"
             value={reminderTime}
             onChange={(val) => {
               setReminderTime(val);
               if (val) {
                 setReminder(displayItem.id, val.format('YYYY-MM-DD HH:mm'), displayItem.title);
+                // 反向计算距现在多少分钟，过去的時間不回显
+                const diff = val.diff(dayjs(), 'minute');
+                setReminderMinutes(diff > 0 ? diff : null);
               } else {
                 removeReminder(displayItem.id);
+                setReminderMinutes(null);
               }
             }}
             style={{ width: '100%' }}
             placeholder="选择提醒时间"
             allowClear
           />
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <InputNumber
+              min={1}
+              value={reminderMinutes}
+              placeholder="分钟数"
+              style={{ width: 100 }}
+              onChange={(val) => {
+                setReminderMinutes(val);
+                if (val && val > 0) {
+                  const newTime = dayjs().add(val, 'minute');
+                  setReminderTime(newTime);
+                  setReminder(displayItem.id, newTime.format('YYYY-MM-DD HH:mm'), displayItem.title);
+                }
+              }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>分钟后提醒</Text>
+          </div>
         </div>
       )}
 
