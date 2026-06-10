@@ -179,7 +179,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
   );
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--bg-primary)', paddingBottom: 40 }}>
       {/* 日历区域 */}
       <div style={{ padding: isMobile ? '12px 12px' : '16px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
         {/* 日期范围选择 */}
@@ -213,7 +213,7 @@ export default function CalendarView({ items, onSelectDate, onAddItem, selectedD
       </div>
 
       {/* 任务列表 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 12px' : '16px 24px' }}>
+      <div style={{ padding: isMobile ? '12px 12px' : '16px 24px' }}>
         {dateRange ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>

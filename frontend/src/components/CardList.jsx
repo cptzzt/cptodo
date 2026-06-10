@@ -125,7 +125,7 @@ export default function CardList({
     && selectableItems.every((i) => batchSelectedIds.includes(i.id));
 
   return (
-    <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: isMobile ? '8px 12px' : '16px 24px', display: 'flex', flexDirection: 'column' }}>
+    <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: isMobile ? '8px 12px' : '16px 24px', paddingBottom: 40, display: 'flex', flexDirection: 'column' }}>
       {batchMode && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
