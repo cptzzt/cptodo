@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, Checkbox } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, TimePicker, Checkbox } from 'antd';
 import dayjs from 'dayjs';
 
 function toDateStr(val) {
@@ -37,6 +37,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
   const [projectId, setProjectId] = useState('');
   const [projectLabelId, setProjectLabelId] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [plannedTime, setPlannedTime] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
     else setDueDate('');
     if (currentView.startsWith('project-')) setProjectId(currentProjectId || '');
     else setProjectId('');
-    setTitle(''); setContent(''); setPriority('normal'); setWeekDay('1'); setProjectLabelId(''); setIsPrivate(false);
+    setTitle(''); setContent(''); setPriority('normal'); setWeekDay('1'); setProjectLabelId(''); setIsPrivate(false); setPlannedTime(null);
   }, [currentView, currentProjectId, currentCalendarDate]);
 
   const isTask = type === 'task';
@@ -82,6 +83,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
         else data.due_date = nextDayOfWeek(parseInt(weekDay));
       } else if (isTodayView) {
         data.due_date = today();
+        data.planned_time = plannedTime ? plannedTime.format('HH:mm') : null;
       } else if (isWeekView) {
         const d = dueDate;
         if (d && (d < weekStart() || d > weekEnd())) return;
@@ -126,7 +128,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
         </Form.Item>
         {showContent && (
           <Form.Item label="内容">
-            <Input.TextArea rows={3} maxLength={500} placeholder="输入任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
+            <Input.TextArea rows={3} maxLength={5000} placeholder="输入任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
           </Form.Item>
         )}
         {showDueDate && (
@@ -146,6 +148,19 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
               <Select.Option value="normal">普通</Select.Option>
               <Select.Option value="important">重要</Select.Option>
             </Select>
+          </Form.Item>
+        )}
+        {isTodayView && isTask && (
+          <Form.Item label="预计完成时间">
+            <TimePicker
+              format="HH:mm"
+              minuteStep={1}
+              value={plannedTime}
+              onChange={(val) => setPlannedTime(val)}
+              style={{ width: '100%' }}
+              placeholder="选择预计完成时间"
+              allowClear
+            />
           </Form.Item>
         )}
         {showRecurring && (

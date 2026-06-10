@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Drawer, Input, InputNumber, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, App, Grid } from 'antd';
+import { Drawer, Input, InputNumber, Select, Checkbox, Tag, Button, Typography, Popconfirm, DatePicker, TimePicker, App, Grid } from 'antd';
 import { StarFilled, StarOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { getReminder, setReminder, removeReminder } from '../utils/reminder';
@@ -38,6 +38,7 @@ export default function DetailPanel({
   const [recurringCount, setRecurringCount] = useState(0);
   const [reminderTime, setReminderTime] = useState(null);
   const [reminderMinutes, setReminderMinutes] = useState(null);
+  const [plannedTime, setPlannedTime] = useState(null);
 
   useEffect(() => {
     if (!item) {
@@ -81,6 +82,7 @@ export default function DetailPanel({
       setReminderTime(null);
       setReminderMinutes(null);
     }
+    setPlannedTime(item.planned_time ? dayjs(item.planned_time, 'HH:mm') : null);
     setOpen(true);
     closingRef.current = false;
     closingItemRef.current = item;
@@ -144,6 +146,7 @@ export default function DetailPanel({
       data.due_date = dueDate || null;
       data.priority = priority;
       data.completed = completed;
+      data.planned_time = plannedTime ? plannedTime.format('HH:mm') : null;
       if (!isRecurring) {
         data.project_id = projectId || null;
         data.project_label_id = projectLabelId || null;
@@ -226,7 +229,7 @@ export default function DetailPanel({
       {!isNote && (
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>内容</Text>
-          <TextArea rows={4} maxLength={500} placeholder="任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
+          <TextArea rows={4} maxLength={5000} placeholder="任务内容..." value={content} onChange={(e) => setContent(e.target.value)} />
         </div>
       )}
 
@@ -286,6 +289,22 @@ export default function DetailPanel({
             />
             <Text type="secondary" style={{ fontSize: 12 }}>分钟后提醒</Text>
           </div>
+        </div>
+      )}
+
+      {/* 预计完成时间（仅任务） */}
+      {!isNote && (
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>预计完成时间</Text>
+          <TimePicker
+            format="HH:mm"
+            minuteStep={1}
+            value={plannedTime}
+            onChange={(val) => setPlannedTime(val)}
+            style={{ width: '100%' }}
+            placeholder="选择预计完成时间"
+            allowClear
+          />
         </div>
       )}
 

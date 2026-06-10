@@ -238,6 +238,15 @@ export default function App() {
         const aEarly = a.show_early && !isToday(a.due_date) ? 1 : 0;
         const bEarly = b.show_early && !isToday(b.due_date) ? 1 : 0;
         if (aEarly !== bEarly) return aEarly - bEarly;
+        // 同级之间按 planned_time 三层排序：
+        // tier 0 = 高优先类型（重要/今天到期/重复）且没填字段 → 排最前
+        // tier 1 = 有 planned_time → 按时间升序排中间
+        // tier 2 = 普通且提前显示且没填字段 → 排最后
+        const aTier = a.planned_time ? 1 : (a.priority === 'important' || isToday(a.due_date) || !!a.recurring ? 0 : 2);
+        const bTier = b.planned_time ? 1 : (b.priority === 'important' || isToday(b.due_date) || !!b.recurring ? 0 : 2);
+        if (aTier !== bTier) return aTier - bTier;
+        if (aTier === 1) return a.planned_time.localeCompare(b.planned_time);
+        return new Date(b.created_at) - new Date(a.created_at);
       }
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
       if (a.due_date) return -1; if (b.due_date) return 1;
@@ -777,6 +786,13 @@ export default function App() {
           />
         )}
       </Content>
+
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, textAlign: 'center', padding: '6px 0', background: 'var(--bg-card)', borderTop: '1px solid var(--border)', zIndex: 100 }}>
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+苏ICP备2026027783号-1
+        </a>
+      </div>
 
       <DetailPanel key={effectiveSelectedItem?.id || 'empty'} item={effectiveSelectedItem} projects={visibleProjects} allTags={visibleTags}
         onClose={() => {
