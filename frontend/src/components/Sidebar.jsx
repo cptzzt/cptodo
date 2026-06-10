@@ -328,7 +328,7 @@ export default function Sidebar({
       </div>
 
       {/* 导航区 */}
-      <div style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', padding: '8px 0', minHeight: 0, maxHeight: isMobile ? '100%' : 'calc(100vh - 73px)' }}>
+      <div style={{ flex: 1, overflowY: 'scroll', overflowX: 'hidden', padding: '8px 0', paddingBottom: 48, minHeight: 0, maxHeight: isMobile ? '100%' : 'calc(100vh - 73px)' }}>
         {/* 固定导航 */}
         <div style={{ padding: '0 10px' }}>
           {NAV_ITEMS.map((item) => {
