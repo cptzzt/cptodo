@@ -7,7 +7,7 @@ const pool = require('../utils/db');
 async function cleanupExpiredRecurring(userId) {
   // 找出已过期的活跃重复任务（不含回收站内的）
   const [expired] = await pool.execute(
-    `SELECT id, user_id, title, content, notes, priority, recurring, due_date, original_created_at
+    `SELECT id, user_id, title, content, notes, priority, recurring, due_date, original_created_at, planned_time
      FROM items
      WHERE user_id = ? AND recurring IS NOT NULL AND type = 'task'
      AND recurring_target = 1
@@ -53,9 +53,9 @@ async function cleanupExpiredRecurring(userId) {
     // 创建下一次任务（只有成功删除旧任务的请求才会走到这里）
     const originalCreatedAt = task.original_created_at || null;
     const [nextResult] = await pool.execute(
-      `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring, original_created_at)
-       VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?, ?)`,
-      [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring, originalCreatedAt]
+      `INSERT INTO items (user_id, type, title, content, notes, due_date, completed, priority, recurring, original_created_at, planned_time)
+       VALUES (?, 'task', ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      [task.user_id, task.title, task.content, task.notes, nextDateStr, task.priority, task.recurring, originalCreatedAt, task.planned_time || null]
     );
 
     // 继承标签到新任务
