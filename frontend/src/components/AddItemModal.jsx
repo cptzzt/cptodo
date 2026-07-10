@@ -48,6 +48,7 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
     setRecurringTarget(1);    if (currentView === 'today') setDueDate(today());
     else if (currentView === 'week') setDueDate(weekEnd());
     else if (currentView === 'calendar' && currentCalendarDate) setDueDate(currentCalendarDate);
+    else if (currentView.startsWith('project-') && currentCalendarDate) setDueDate(currentCalendarDate);
     else setDueDate('');
     if (currentView.startsWith('project-')) setProjectId(currentProjectId || '');
     else setProjectId('');

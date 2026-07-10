@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Layout, Button, Input, Typography, Spin, Popconfirm, App as AntApp, Grid, Drawer, Popover, Checkbox } from 'antd';
-import { MenuOutlined } from '@ant-design/icons';
+import { Layout, Button, Input, Typography, Spin, Popconfirm, App as AntApp, Grid, Drawer, Popover, Checkbox, Segmented, Select, Tag, DatePicker } from 'antd';
+import { MenuOutlined, SearchOutlined } from '@ant-design/icons';
 import { App as CapacitorApp } from '@capacitor/app';
 import Sidebar from './components/Sidebar';
 import CardList from './components/CardList';
+import ProjectTable from './components/ProjectTable';
 import DetailPanel from './components/DetailPanel';
 import AddItemModal from './components/AddItemModal';
 import TrashView from './components/TrashView';
@@ -18,6 +19,7 @@ import './styles/global.css';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const VIEW_TITLES = {
   notes: '随笔', today: '今天', week: '本周',
@@ -55,6 +57,13 @@ export default function App() {
     const v = localStorage.getItem('show_shelved');
     return v === null ? true : v === 'true';
   });
+  // 项目视图的展示模式：卡片 / 表格（持久化到 localStorage）
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('project_view_mode') || 'card');
+  // 项目视图的筛选状态：搜索词 / 全局标签多选 / 项目专属标签单选 / 日期范围
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [filterTagIds, setFilterTagIds] = useState([]);
+  const [filterProjectLabelId, setFilterProjectLabelId] = useState(null);
+  const [filterDateRange, setFilterDateRange] = useState(null);
   const [privacyMode, setPrivacyMode] = useState(() => localStorage.getItem('privacy_mode') === 'true');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
@@ -91,6 +100,14 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 切换视图时清空项目筛选，避免上个项目的搜索词/标签带到新视图
+  useEffect(() => {
+    setSearchKeyword('');
+    setFilterTagIds([]);
+    setFilterProjectLabelId(null);
+    setFilterDateRange(null);
+  }, [currentView]);
 
   // 切回标签页时刷新数据
   useEffect(() => {
@@ -198,6 +215,26 @@ export default function App() {
           const pid = Number(currentView.split('-')[1]);
           items = allItems.filter((i) => (i.type === 'task' || i.type === 'note') && i.project_id === pid && !i.recurring);
           if (!showCompleted) items = items.filter((i) => !i.completed);
+          // 项目视图筛选：搜索(标题/内容) + 全局标签(多选,任一匹配) + 项目专属标签(单选)
+          if (searchKeyword) {
+            const kw = searchKeyword.trim().toLowerCase();
+            if (kw) items = items.filter((i) => (i.title || '').toLowerCase().includes(kw) || (i.content || '').toLowerCase().includes(kw));
+          }
+          if (filterTagIds.length > 0) {
+            items = items.filter((i) => i.tags && i.tags.some((t) => filterTagIds.includes(t.id)));
+          }
+          if (filterProjectLabelId) {
+            items = items.filter((i) => i.project_label_id === filterProjectLabelId);
+          }
+          // 日期范围筛选：随笔无截止日期，不受影响；任务需 due_date 落在范围内
+          if (filterDateRange) {
+            items = items.filter((i) => {
+              if (i.type === 'note') return true;
+              if (!i.due_date) return false;
+              const d = toDateStr(i.due_date);
+              return d >= filterDateRange.start && d <= filterDateRange.end;
+            });
+          }
         } else if (currentView.startsWith('tag-')) {
           const tid = Number(currentView.split('-')[1]);
           items = allItems.filter((i) => i.tags && i.tags.some((t) => t.id === tid));
@@ -298,6 +335,12 @@ export default function App() {
   const filteredItems = getFilteredItems();
   const currentProjectId = currentView.startsWith('project-') ? Number(currentView.split('-')[1]) : null;
   const currentTagId = currentView.startsWith('tag-') ? Number(currentView.split('-')[1]) : null;
+  // 项目视图筛选条的可选项：只列出该项目内实际用到的全局标签 + 该项目的专属标签
+  const projectFilterTags = currentProjectId
+    ? allTags.filter((t) => allItems.some((i) => i.project_id === currentProjectId && (i.type === 'task' || i.type === 'note') && i.tags && i.tags.some((it) => it.id === t.id)))
+    : [];
+  const currentProjectObj = currentProjectId ? projects.find((p) => p.id === currentProjectId) : null;
+  const projectLabelOptions = currentProjectObj?.labels || [];
 
   // 移动端使用路由控制详情页，PC 端使用状态控制
   const effectiveSelectedId = isMobile && routeItemId ? Number(routeItemId) : selectedId;
@@ -623,6 +666,23 @@ export default function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <Title level={4} style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 0%' }}>{getViewTitle()}</Title>
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexShrink: 0 }}>
+              {currentView.startsWith('project-') && (
+                <Segmented
+                  size="small"
+                  value={viewMode}
+                  onChange={(v) => {
+                    localStorage.setItem('project_view_mode', v);
+                    setViewMode(v);
+                    // 切换模式时退出批量选择（表格视图暂未接入批量）
+                    setBatchMode(false);
+                    setBatchSelectedIds([]);
+                  }}
+                  options={[
+                    { label: '卡片', value: 'card' },
+                    { label: '表格', value: 'table' },
+                  ]}
+                />
+              )}
               {!['notes', 'recurring', 'expired', 'trash', 'calendar'].includes(currentView) && (
                 <Popover
                   trigger="click"
@@ -738,6 +798,66 @@ export default function App() {
           {getViewSubtitle() && <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>{getViewSubtitle()}</Text>}
         </div>
 
+        {/* 项目视图筛选条：搜索 + 全局标签多选 + 项目专属标签单选（卡片/表格共用） */}
+        {currentView.startsWith('project-') && (
+          <div style={{ padding: isMobile ? '8px 12px' : '10px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+            <Input
+              placeholder="搜索标题或内容"
+              allowClear
+              prefix={<SearchOutlined style={{ color: 'var(--fg-muted)' }} />}
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              style={{ width: isMobile ? '100%' : 220 }}
+            />
+            {projectFilterTags.length > 0 && (
+              <Select
+                mode="multiple"
+                placeholder="全局标签"
+                allowClear
+                value={filterTagIds}
+                onChange={setFilterTagIds}
+                maxTagCount="responsive"
+                style={{ minWidth: 140, flex: isMobile ? '1 1 100%' : '0 0 auto' }}
+              >
+                {projectFilterTags.map((t) => (
+                  <Select.Option key={t.id} value={t.id}>
+                    <Tag color={t.color} style={{ margin: 0 }}>{t.name}</Tag>
+                  </Select.Option>
+                ))}
+              </Select>
+            )}
+            {projectLabelOptions.length > 0 && (
+              <Select
+                placeholder="项目标签"
+                allowClear
+                value={filterProjectLabelId || undefined}
+                onChange={(v) => setFilterProjectLabelId(v || null)}
+                style={{ minWidth: 120, flex: isMobile ? '1 1 100%' : '0 0 auto' }}
+              >
+                {projectLabelOptions.map((l) => (
+                  <Select.Option key={l.id} value={l.id}>{l.name}</Select.Option>
+                ))}
+              </Select>
+            )}
+            <RangePicker
+              size="small"
+              value={filterDateRange ? [dayjs(filterDateRange.start), dayjs(filterDateRange.end)] : null}
+              onChange={(dates) => {
+                if (!dates || dates.length < 2) { setFilterDateRange(null); return; }
+                setFilterDateRange({ start: dates[0].format('YYYY-MM-DD'), end: dates[1].format('YYYY-MM-DD') });
+              }}
+              presets={QUICK_RANGES.map((r) => ({ label: r.label, value: [dayjs().startOf('day'), dayjs().add(r.days, 'day').endOf('day')] }))}
+              placeholder={['开始日期', '结束日期']}
+              style={{ width: isMobile ? '100%' : 240 }}
+            />
+            {(searchKeyword || filterTagIds.length > 0 || filterProjectLabelId || filterDateRange) && (
+              <Button size="small" onClick={() => { setSearchKeyword(''); setFilterTagIds([]); setFilterProjectLabelId(null); setFilterDateRange(null); }}>
+                清除筛选
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* 随笔快速输入 */}
         {currentView === 'notes' && (
           <div style={{ padding: isMobile ? '6px 12px' : '12px 24px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -765,6 +885,19 @@ export default function App() {
                 setSelectedId(item.id);
               }
             }}
+          />
+        ) : currentView.startsWith('project-') && viewMode === 'table' ? (
+          <ProjectTable
+            items={filteredItems}
+            selectedId={effectiveSelectedId}
+            onSelectItem={(item) => {
+              if (isMobile) {
+                navigate('/item/' + item.id, { replace: false });
+              } else {
+                setSelectedId(item.id);
+              }
+            }}
+            onToggleComplete={handleToggleComplete}
           />
         ) : (
           <CardList
@@ -807,7 +940,7 @@ export default function App() {
 
       {showAddModal && (
         <AddItemModal currentView={currentView} currentProjectId={currentProjectId}
-          currentTagId={currentTagId} currentCalendarDate={calendarSelectedDate} projects={visibleProjects}
+          currentTagId={currentTagId} currentCalendarDate={currentView.startsWith('project-') ? (filterDateRange?.start || null) : calendarSelectedDate} projects={visibleProjects}
           onConfirm={handleCreateItem} onCancel={() => setShowAddModal(false)} />
       )}
 
