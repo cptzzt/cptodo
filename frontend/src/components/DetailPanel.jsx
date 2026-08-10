@@ -86,7 +86,9 @@ export default function DetailPanel({
     setOpen(true);
     closingRef.current = false;
     closingItemRef.current = item;
-  }, [item]);
+    // 依赖 item?.id 而非 item 引用：只在切换到不同任务（或打开/关闭）时重置表单，
+    // 同一任务被 loadData 刷新（新引用但 id 不变）时不重置，避免冲掉用户编辑中的草稿
+  }, [item?.id]);
 
   function handleClose() {
     closingRef.current = true;

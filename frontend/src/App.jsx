@@ -136,19 +136,33 @@ export default function App() {
   // 请求浏览器通知权限
   useEffect(() => { requestPermission(); }, []);
 
-  // 每 30 秒检查提醒
+  // 检查到点提醒并弹通知：30秒轮询兜底 + 页面重新可见/获得焦点时立即补查
+  // （切走或休眠回来能即时补弹，不再干等下一个 30 秒 tick）
   useEffect(() => {
     const check = () => {
       const due = getDueReminders();
       due.forEach((r) => {
-        showNotification('任务提醒', r.title);
+        const remindTime = new Date(r.time);
+        const overdueMin = Math.round((Date.now() - remindTime.getTime()) / 60000);
+        const timeStr = dayjs(r.time).format('HH:mm');
+        const body = overdueMin > 1
+          ? `${r.title}（原定 ${timeStr} 提醒，已逾期 ${overdueMin} 分钟）`
+          : `${r.title}（原定 ${timeStr} 提醒）`;
+        showNotification('任务提醒', body);
         markNotified(r.id);
       });
       cleanupOldReminders();
     };
     check();
     const timer = setInterval(check, 30000);
-    return () => clearInterval(timer);
+    const onVisible = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
   }, []);
 
   // 拦截 Android 返回按钮事件
