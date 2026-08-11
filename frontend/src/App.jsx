@@ -145,9 +145,12 @@ export default function App() {
         const remindTime = new Date(r.time);
         const overdueMin = Math.round((Date.now() - remindTime.getTime()) / 60000);
         const timeStr = dayjs(r.time).format('HH:mm');
+        const h = Math.floor(overdueMin / 60);
+        const m = overdueMin % 60;
+        const overdueText = h > 0 && m > 0 ? `${h} 小时 ${m} 分钟` : h > 0 ? `${h} 小时` : `${m} 分钟`;
         const body = overdueMin > 1
-          ? `${r.title}（原定 ${timeStr} 提醒，已逾期 ${overdueMin} 分钟）`
-          : `${r.title}（原定 ${timeStr} 提醒）`;
+          ? `${r.title}（原定 ${timeStr} 提醒，已逾期 ${overdueText}）`
+          : `${r.title}（定于 ${timeStr} 提醒）`;
         showNotification('任务提醒', body);
         markNotified(r.id);
       });
