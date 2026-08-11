@@ -92,8 +92,11 @@ export default function AddItemModal({ currentView, currentProjectId, currentTag
       } else {
         data.due_date = dueDate || null;
       }
-      if (currentView.startsWith('project-') && currentProjectId) {
-        data.project_id = currentProjectId;
+      // 用用户在弹窗里实际选的项目（projectId state），而非按视图判断。
+      // 否则在「今天/本周/日历/标签」视图新建时手动选了项目也不会传 project_id。
+      // 项目视图下 projectId 会被 useEffect 预填为 currentProjectId，行为不变。
+      if (projectId) {
+        data.project_id = projectId;
         if (projectLabelId) data.project_label_id = projectLabelId;
       }
     }
